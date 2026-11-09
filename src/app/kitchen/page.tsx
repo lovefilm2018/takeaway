@@ -562,6 +562,11 @@ export default function KitchenPortalPage() {
                             <span className="text-amber-400 font-mono text-sm">{item.quantity}x</span>
                             <span className="text-stone-400 font-mono text-xs">#{item.dishCode}</span>
                             <span className="text-sm">{item.name}</span>
+                            {item.size && (
+                              <span className="text-amber-400 font-bold text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-600/40">
+                                {item.size}
+                              </span>
+                            )}
                             {item.chineseName && (
                               <span className="text-stone-400 text-xs font-serif font-normal">
                                 {item.chineseName}
@@ -711,7 +716,7 @@ export default function KitchenPortalPage() {
                     <div key={idx} className="flex justify-between font-bold text-stone-200">
                       <span>
                         <span className="text-amber-400 mr-1.5">{item.quantity}x</span>
-                        #{item.dishCode} {item.name}
+                        #{item.dishCode} {item.name} {item.size ? `(${item.size})` : ''}
                       </span>
                     </div>
                   ))}
@@ -917,7 +922,7 @@ export default function KitchenPortalPage() {
                   {selectedTicketForPrint.items.map((it, idx) => (
                     <div key={idx}>
                       <p className="font-black text-sm">
-                        {it.quantity}x [#{it.dishCode}] {it.name} {it.chineseName}
+                        {it.quantity}x [#{it.dishCode}] {it.name} {it.size ? `(${it.size})` : ''} {it.chineseName}
                       </p>
                       {it.modifiers && it.modifiers.map((m, mIdx) => (
                         <p key={mIdx} className="font-bold pl-3">

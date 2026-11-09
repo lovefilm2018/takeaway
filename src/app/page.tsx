@@ -15,6 +15,9 @@ import {
   Plus, 
   Minus, 
   ArrowRight,
+  ArrowLeft,
+  Receipt,
+  Utensils,
   ShieldAlert,
   Sparkles,
   ChevronRight,
@@ -59,20 +62,79 @@ const AVAILABLE_SIDES: SideOption[] = [
   { dishCode: '34', name: 'Plain Chow Mein (#34)', pricePence: 450 },
 ];
 
+interface DuckPortionOption {
+  id: 'Quarter' | 'Half' | 'Whole';
+  label: string;
+  detail: string;
+  pancakes: string;
+  pricePence: number;
+}
+
+const DUCK_PORTIONS: DuckPortionOption[] = [
+  { id: 'Quarter', label: 'Quarter Duck (1/4)', detail: 'With 6 pancakes, salad & sauce', pancakes: '6 Pancakes', pricePence: 1180 },
+  { id: 'Half', label: 'Half Duck (1/2)', detail: 'With 12 pancakes, salad & sauce', pancakes: '12 Pancakes', pricePence: 2250 },
+  { id: 'Whole', label: 'Whole Duck', detail: 'With 24 pancakes, salad & sauce', pancakes: '24 Pancakes', pricePence: 3900 },
+];
+
+interface RecentOrderSummary {
+  id: string;
+  displayNumber: string;
+  createdAt: string;
+  fulfillmentType: 'DELIVERY' | 'COLLECTION';
+  totalPence: number;
+  status: OrderStatus;
+  estimatedReadyAt?: string;
+  surgeEtaMinutes?: number;
+  itemCount: number;
+  itemSummary: string;
+}
+
+const formatReadyTime = (iso?: string) => {
+  if (!iso) return '20–30 mins';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '20–30 mins';
+  }
+};
+
+const playOrderReadyChime = () => {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.6);
+  } catch {}
+};
+
 export default function StorefrontPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>(MENU_CATEGORIES[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [fulfillmentType, setFulfillmentType] = useState<'COLLECTION' | 'DELIVERY'>('COLLECTION');
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isOrdersDrawerOpen, setIsOrdersDrawerOpen] = useState(false);
   const [activeModalItem, setActiveModalItem] = useState<MenuItem | null>(null);
 
   // Modal customization state
   const [selectedSize, setSelectedSize] = useState<'REGULAR' | 'LARGE'>('REGULAR');
+  const [selectedDuckPortion, setSelectedDuckPortion] = useState<'Quarter' | 'Half' | 'Whole'>('Quarter');
   const [selectedSide, setSelectedSide] = useState<SideOption | null>(null);
   const [spicePreference, setSpicePreference] = useState<'Standard' | 'Mild' | 'Extra Hot' | 'No Chilli'>('Standard');
   const [cookingNotes, setCookingNotes] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Recent orders tracking without account registration (saved locally for 24h)
+  const [recentOrders, setRecentOrders] = useState<RecentOrderSummary[]>([]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -98,23 +160,163 @@ export default function StorefrontPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Poll active order state every 2 seconds for live sync with kitchen actions
+  // Load and prune recent orders from localStorage (24h lifespan)
   useEffect(() => {
-    if (!orderSuccess?.id) return;
+    try {
+      const stored = localStorage.getItem('grb_recent_orders');
+      if (stored) {
+        const parsed: RecentOrderSummary[] = JSON.parse(stored);
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        const valid = parsed.filter((o) => new Date(o.createdAt).getTime() > cutoff);
+        setRecentOrders(valid);
+        localStorage.setItem('grb_recent_orders', JSON.stringify(valid));
+      }
+    } catch (e) {
+      console.error('Error reading recent orders from localStorage:', e);
+    }
+  }, []);
+
+  // Find currently active order (if any) among recent orders
+  const activeTrackedOrder = useMemo(() => {
+    return recentOrders.find(
+      (o) => o.status !== 'COMPLETED' && o.status !== 'CANCELLED'
+    );
+  }, [recentOrders]);
+
+  // History & Drawer navigation helpers so back button never exits web app
+  const openCart = () => {
+    setIsCartOpen(true);
+    setIsOrdersDrawerOpen(false);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ drawer: 'basket' }, '', '#basket');
+    }
+  };
+
+  const closeCart = () => {
+    setIsCartOpen(false);
+    if (typeof window !== 'undefined' && window.location.hash === '#basket') {
+      window.history.back();
+    }
+  };
+
+  const openOrdersDrawer = () => {
+    setIsOrdersDrawerOpen(true);
+    setIsCartOpen(false);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ drawer: 'orders' }, '', '#orders');
+    }
+  };
+
+  const closeOrdersDrawer = () => {
+    setIsOrdersDrawerOpen(false);
+    if (typeof window !== 'undefined' && window.location.hash === '#orders') {
+      window.history.back();
+    }
+  };
+
+  const openActiveOrderModal = async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.order) {
+          setOrderSuccess(data.order);
+          setIsOrdersDrawerOpen(false);
+          setIsCartOpen(false);
+          if (typeof window !== 'undefined') {
+            window.history.pushState({ modal: 'order-status' }, '', '#status');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error loading order for modal:', err);
+    }
+  };
+
+  const closeOrderSuccess = () => {
+    setOrderSuccess(null);
+    if (typeof window !== 'undefined' && window.location.hash === '#status') {
+      window.history.back();
+    }
+  };
+
+  const closeModal = () => {
+    setActiveModalItem(null);
+    if (typeof window !== 'undefined' && window.location.hash === '#customize') {
+      window.history.back();
+    }
+  };
+
+  // Popstate listener to handle device hardware back / gesture swipe
+  useEffect(() => {
+    const handlePopState = () => {
+      setIsCartOpen(false);
+      setIsOrdersDrawerOpen(false);
+      setActiveModalItem(null);
+      setOrderSuccess(null);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Poll active order state every 2.5s for live sync with kitchen actions
+  useEffect(() => {
+    const targetOrderId = orderSuccess?.id || activeTrackedOrder?.id;
+    if (!targetOrderId) return;
+
+    let isMounted = true;
     const pollOrder = async () => {
       try {
-        const res = await fetch(`/api/orders/${orderSuccess.id}`, { cache: 'no-store' });
-        if (res.ok) {
+        const res = await fetch(`/api/orders/${targetOrderId}`, { cache: 'no-store' });
+        if (res.ok && isMounted) {
           const data = await res.json();
           if (data.order) {
-            setOrderSuccess(data.order);
+            const ord = data.order as Order;
+            if (orderSuccess && orderSuccess.id === ord.id) {
+              setOrderSuccess(ord);
+            }
+            // Update in recentOrders
+            setRecentOrders((prev) => {
+              const prevOrd = prev.find((o) => o.id === ord.id);
+              if (prevOrd && prevOrd.status !== ord.status) {
+                // If order just became ready, notify user!
+                if (
+                  (ord.status === 'READY_FOR_COLLECTION' || ord.status === 'OUT_FOR_DELIVERY') &&
+                  prevOrd.status !== 'READY_FOR_COLLECTION' &&
+                  prevOrd.status !== 'OUT_FOR_DELIVERY'
+                ) {
+                  playOrderReadyChime();
+                  showToast(
+                    `🎉 Order ${ord.displayNumber} is READY for ${ord.fulfillmentType === 'DELIVERY' ? 'delivery' : 'collection'}!`
+                  );
+                }
+              }
+              const updated = prev.map((o) =>
+                o.id === ord.id
+                  ? {
+                      ...o,
+                      status: ord.status,
+                      estimatedReadyAt: ord.estimatedReadyAt,
+                      surgeEtaMinutes: ord.surgeEtaMinutes,
+                    }
+                  : o
+              );
+              try {
+                localStorage.setItem('grb_recent_orders', JSON.stringify(updated));
+              } catch {}
+              return updated;
+            });
           }
         }
       } catch {}
     };
-    const interval = setInterval(pollOrder, 2000);
-    return () => clearInterval(interval);
-  }, [orderSuccess?.id]);
+
+    const interval = setInterval(pollOrder, 2500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [orderSuccess?.id, activeTrackedOrder?.id]);
 
   // Customer Surge Handshake response
   const handleCustomerSurgeResponse = async (accepted: boolean) => {
@@ -274,6 +476,7 @@ export default function StorefrontPage() {
     if (isSaucyMain || hasMultipleSizes || isAromaticDuck) {
       setActiveModalItem(item);
       setSelectedSize('REGULAR');
+      setSelectedDuckPortion('Quarter');
       setSelectedSide(null);
       setSpicePreference(
         item.spicyLevel && item.spicyLevel > 0
@@ -285,6 +488,9 @@ export default function StorefrontPage() {
           : 'Standard'
       );
       setCookingNotes('');
+      if (typeof window !== 'undefined') {
+        window.history.pushState({ modal: 'customize' }, '', '#customize');
+      }
     } else {
       // Direct 1-tap add!
       handleDirectAddToCart(item);
@@ -294,12 +500,35 @@ export default function StorefrontPage() {
   const handleAddToCart = () => {
     if (!activeModalItem) return;
 
-    const basePrice =
-      selectedSize === 'LARGE' && activeModalItem.largePricePence
-        ? activeModalItem.largePricePence
-        : activeModalItem.basePricePence;
-
+    let basePrice = activeModalItem.basePricePence;
+    let sizeLabel: string | undefined = undefined;
     const modifiers = [];
+
+    if (activeModalItem.dishCode === '91') {
+      if (selectedDuckPortion === 'Whole') {
+        basePrice = 3900;
+        sizeLabel = 'Whole Duck';
+      } else if (selectedDuckPortion === 'Half') {
+        basePrice = 2250;
+        sizeLabel = '1/2 Duck';
+      } else {
+        basePrice = 1180;
+        sizeLabel = '1/4 Duck';
+      }
+      modifiers.push({
+        groupId: 'portion',
+        groupName: 'Duck Portion',
+        optionId: selectedDuckPortion.toLowerCase(),
+        optionName: `${selectedDuckPortion} Duck (${selectedDuckPortion === 'Quarter' ? '6 Pancakes' : selectedDuckPortion === 'Half' ? '12 Pancakes' : '24 Pancakes'})`,
+        priceDeltaPence: 0,
+      });
+    } else if (activeModalItem.largePricePence) {
+      basePrice = selectedSize === 'LARGE' ? activeModalItem.largePricePence : activeModalItem.basePricePence;
+      sizeLabel = activeModalItem.dishCode === '37'
+        ? (selectedSize === 'LARGE' ? '10 Balls' : '5 Balls')
+        : (selectedSize === 'LARGE' ? 'Large' : 'Regular');
+    }
+
     if (activeModalItem.spicyLevel && activeModalItem.spicyLevel > 0 && spicePreference !== 'Standard') {
       modifiers.push({
         groupId: 'spice',
@@ -317,7 +546,7 @@ export default function StorefrontPage() {
       name: activeModalItem.name,
       chineseName: activeModalItem.chineseName,
       quantity: 1,
-      size: activeModalItem.largePricePence ? selectedSize : undefined,
+      size: sizeLabel,
       unitPricePence: basePrice,
       modifiers,
       lineTotalPence: basePrice,
@@ -326,7 +555,7 @@ export default function StorefrontPage() {
     };
 
     const newItems: OrderItem[] = [mainItem];
-    let toastSummary = `Added #${activeModalItem.dishCode} ${activeModalItem.name}`;
+    let toastSummary = `Added #${activeModalItem.dishCode} ${activeModalItem.name}${sizeLabel ? ` (${sizeLabel})` : ''}`;
 
     // If customer selected an optional side, add as a separate independent line item
     if (selectedSide) {
@@ -348,7 +577,7 @@ export default function StorefrontPage() {
     }
 
     setCart((prev) => [...prev, ...newItems]);
-    setActiveModalItem(null);
+    closeModal();
     showToast(toastSummary);
   };
 
@@ -436,9 +665,29 @@ export default function StorefrontPage() {
       console.error('Failed to broadcast order to cloud:', err);
     }
 
-    // Also save to shared localStorage as backup
+    // Save to shared localStorage bus
     const existingOrders = JSON.parse(localStorage.getItem('grb_orders_bus') || '[]');
     localStorage.setItem('grb_orders_bus', JSON.stringify([newOrder, ...existingOrders]));
+
+    // Also persist customer recent orders list for 24h tracking (no registration needed)
+    const orderSummary: RecentOrderSummary = {
+      id: newOrder.id,
+      displayNumber: newOrder.displayNumber,
+      createdAt: newOrder.createdAt,
+      fulfillmentType: newOrder.fulfillmentType,
+      totalPence: newOrder.totalPence,
+      status: newOrder.status,
+      itemCount: cart.reduce((a, b) => a + b.quantity, 0),
+      itemSummary: cart.map((it) => `${it.quantity}x ${it.name}${it.size ? ` (${it.size})` : ''}`).join(', '),
+    };
+
+    setRecentOrders((prev) => {
+      const updated = [orderSummary, ...prev.filter((o) => o.id !== newOrder.id)];
+      try {
+        localStorage.setItem('grb_recent_orders', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
 
     // Dispatch custom storage event for same-window updates
     window.dispatchEvent(new Event('grb_new_order'));
@@ -446,6 +695,9 @@ export default function StorefrontPage() {
     setOrderSuccess(newOrder);
     setCart([]);
     setIsCartOpen(false);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ modal: 'order-status' }, '', '#status');
+    }
   };
 
   return (
@@ -483,14 +735,49 @@ export default function StorefrontPage() {
               </div>
             </div>
 
-            <div className="text-right hidden sm:block">
-              <span className="text-xs text-stone-300 flex items-center gap-1.5 justify-end">
-                <Clock className={`w-3.5 h-3.5 ${storeStatus?.isOpen ? 'text-emerald-400' : 'text-red-400'}`} />
-                <span className={`font-semibold ${storeStatus?.isOpen ? 'text-emerald-300' : 'text-red-300'}`}>
-                  {storeStatus?.isOpen ? 'Open Now' : 'Store Closed'}
+            <div className="flex items-center gap-2.5">
+              {/* Active live order button or My Orders button */}
+              {activeTrackedOrder ? (
+                <button
+                  type="button"
+                  onClick={() => openActiveOrderModal(activeTrackedOrder.id)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-200 text-xs font-bold transition-all shadow-sm"
+                >
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="hidden sm:inline">
+                    Order {activeTrackedOrder.displayNumber}: {
+                      activeTrackedOrder.status === 'READY_FOR_COLLECTION' ? 'Ready!' :
+                      activeTrackedOrder.status === 'OUT_FOR_DELIVERY' ? 'Out for Delivery!' :
+                      activeTrackedOrder.status === 'COOKING' ? 'Cooking' : 'Confirmed'
+                    }
+                  </span>
+                  <span className="sm:hidden font-mono">
+                    {activeTrackedOrder.displayNumber}
+                  </span>
+                </button>
+              ) : recentOrders.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={openOrdersDrawer}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-imperial-950/70 hover:bg-imperial-950 border border-gold-500/30 text-gold-200 text-xs font-semibold transition-all shadow-sm"
+                >
+                  <Receipt className="w-3.5 h-3.5 text-gold-400" />
+                  <span>My Orders ({recentOrders.length})</span>
+                </button>
+              ) : null}
+
+              <div className="text-right hidden sm:block">
+                <span className="text-xs text-stone-300 flex items-center gap-1.5 justify-end">
+                  <Clock className={`w-3.5 h-3.5 ${storeStatus?.isOpen ? 'text-emerald-400' : 'text-red-400'}`} />
+                  <span className={`font-semibold ${storeStatus?.isOpen ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {storeStatus?.isOpen ? 'Open Now' : 'Store Closed'}
+                  </span>
+                  <span className="text-stone-400">· {storeStatus?.nextOpeningText || 'Heathfield'}</span>
                 </span>
-                <span className="text-stone-400">· {storeStatus?.nextOpeningText || 'Heathfield'}</span>
-              </span>
+              </div>
             </div>
           </div>
 
@@ -519,10 +806,30 @@ export default function StorefrontPage() {
               </button>
             </div>
 
-            <div className="text-xs text-stone-300 font-semibold sm:hidden">
-              <span className={storeStatus?.isOpen ? 'text-emerald-300' : 'text-red-300'}>
-                {storeStatus?.isOpen ? '● Open' : '● Closed'}
-              </span>
+            <div className="flex items-center gap-2 sm:hidden">
+              {activeTrackedOrder ? (
+                <button
+                  type="button"
+                  onClick={() => openActiveOrderModal(activeTrackedOrder.id)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-[11px] font-bold"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span>{activeTrackedOrder.displayNumber}: {activeTrackedOrder.status === 'READY_FOR_COLLECTION' ? 'Ready' : 'In Prep'}</span>
+                </button>
+              ) : recentOrders.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={openOrdersDrawer}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-imperial-950/60 border border-gold-500/30 text-gold-200 text-[11px] font-bold"
+                >
+                  <Receipt className="w-3 h-3 text-gold-400" />
+                  <span>Orders ({recentOrders.length})</span>
+                </button>
+              ) : (
+                <span className={`text-xs font-semibold ${storeStatus?.isOpen ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {storeStatus?.isOpen ? '● Open' : '● Closed'}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -766,7 +1073,7 @@ export default function StorefrontPage() {
                 )}
               </div>
               <button
-                onClick={() => setActiveModalItem(null)}
+                onClick={closeModal}
                 className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500"
               >
                 <X className="w-4 h-4" />
@@ -775,11 +1082,11 @@ export default function StorefrontPage() {
 
             {/* Modal Body */}
             <div className="p-4 sm:p-5 overflow-y-auto space-y-5 text-xs sm:text-sm">
-              {/* Size Selection (if applicable) */}
-              {activeModalItem.largePricePence && (
+              {/* Size Selection (Only for dishes with largePricePence that are NOT Duck 91) */}
+              {activeModalItem.largePricePence && activeModalItem.dishCode !== '91' && (
                 <div>
                   <label className="font-bold text-stone-900 block mb-2">
-                    Select Portion Size
+                    {activeModalItem.dishCode === '37' ? 'Select Portion (Chicken Balls)' : 'Select Portion Size'}
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -787,11 +1094,13 @@ export default function StorefrontPage() {
                       onClick={() => setSelectedSize('REGULAR')}
                       className={`p-3 rounded-xl border text-left flex items-center justify-between ${
                         selectedSize === 'REGULAR'
-                          ? 'border-imperial-800 bg-imperial-50/50 text-imperial-950 font-bold'
+                          ? 'border-imperial-800 bg-imperial-50/50 text-imperial-950 font-bold ring-1 ring-imperial-800/30'
                           : 'border-stone-200 hover:border-stone-300'
                       }`}
                     >
-                      <span>Regular Portion</span>
+                      <span>
+                        {activeModalItem.dishCode === '37' ? 'Regular (5 Balls)' : 'Regular Portion'}
+                      </span>
                       <span>£{(activeModalItem.basePricePence / 100).toFixed(2)}</span>
                     </button>
                     <button
@@ -799,45 +1108,43 @@ export default function StorefrontPage() {
                       onClick={() => setSelectedSize('LARGE')}
                       className={`p-3 rounded-xl border text-left flex items-center justify-between ${
                         selectedSize === 'LARGE'
-                          ? 'border-imperial-800 bg-imperial-50/50 text-imperial-950 font-bold'
+                          ? 'border-imperial-800 bg-imperial-50/50 text-imperial-950 font-bold ring-1 ring-imperial-800/30'
                           : 'border-stone-200 hover:border-stone-300'
                       }`}
                     >
-                      <span>Large Portion</span>
+                      <span>
+                        {activeModalItem.dishCode === '37' ? 'Large (10 Balls)' : 'Large Portion'}
+                      </span>
                       <span>£{(activeModalItem.largePricePence / 100).toFixed(2)}</span>
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Aromatic Duck (#91) Portion Selection */}
+              {/* Aromatic Duck (#91) Dedicated Portion Selection */}
               {activeModalItem.dishCode === '91' && (
                 <div>
-                  <label className="font-bold text-stone-900 block mb-2">
+                  <label className="font-bold text-stone-900 block mb-1">
                     Select Duck Portion
                   </label>
-                  <p className="text-stone-500 text-xs mb-2">
-                    Served with warm steamed pancakes, cucumber, spring onions & hoi sin sauce.
+                  <p className="text-stone-500 text-xs mb-3">
+                    Includes warm steamed pancakes, sliced cucumber, spring onions & rich hoi sin sauce.
                   </p>
                   <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { label: 'Quarter Duck', pricePence: 1180 },
-                      { label: 'Half Duck', pricePence: 2180 },
-                      { label: 'Whole Duck', pricePence: 3900 },
-                    ].map((duckPortion) => (
+                    {DUCK_PORTIONS.map((duckPortion) => (
                       <button
-                        key={duckPortion.label}
+                        key={duckPortion.id}
                         type="button"
-                        onClick={() => setSelectedSize(duckPortion.label === 'Quarter Duck' ? 'REGULAR' : 'LARGE')}
+                        onClick={() => setSelectedDuckPortion(duckPortion.id)}
                         className={`p-2.5 rounded-xl border text-center flex flex-col items-center justify-between transition-all ${
-                          (selectedSize === 'REGULAR' && duckPortion.label === 'Quarter Duck') ||
-                          (selectedSize === 'LARGE' && duckPortion.label !== 'Quarter Duck')
-                            ? 'border-imperial-800 bg-imperial-50 text-imperial-950 font-bold ring-1 ring-imperial-800/30'
-                            : 'border-stone-200 hover:border-stone-300'
+                          selectedDuckPortion === duckPortion.id
+                            ? 'border-imperial-800 bg-imperial-50 text-imperial-950 font-bold ring-2 ring-imperial-800/30 shadow-sm'
+                            : 'border-stone-200 hover:border-stone-300 bg-white'
                         }`}
                       >
-                        <span className="text-xs">{duckPortion.label}</span>
-                        <span className="font-bold text-stone-900 text-xs mt-1">
+                        <span className="text-xs font-bold leading-tight">{duckPortion.label}</span>
+                        <span className="text-[10px] text-stone-500 mt-0.5">{duckPortion.pancakes}</span>
+                        <span className="font-black text-stone-900 text-xs mt-2">
                           £{(duckPortion.pricePence / 100).toFixed(2)}
                         </span>
                       </button>
@@ -953,9 +1260,11 @@ export default function StorefrontPage() {
                 <span className="text-xs text-stone-500 block">Total</span>
                 <span className="font-black text-stone-900 text-base">
                   £{(
-                    ((selectedSize === 'LARGE' && activeModalItem.largePricePence
-                      ? activeModalItem.largePricePence
-                      : activeModalItem.basePricePence) +
+                    ((activeModalItem.dishCode === '91'
+                      ? (selectedDuckPortion === 'Whole' ? 3900 : selectedDuckPortion === 'Half' ? 2250 : 1180)
+                      : (selectedSize === 'LARGE' && activeModalItem.largePricePence
+                          ? activeModalItem.largePricePence
+                          : activeModalItem.basePricePence)) +
                       (selectedSide ? selectedSide.pricePence : 0)) /
                     100
                   ).toFixed(2)}
@@ -979,11 +1288,53 @@ export default function StorefrontPage() {
         </div>
       )}
 
+      {/* ================= FLOATING ACTIVE ORDER TRACKER PILL ================= */}
+      {activeTrackedOrder && !orderSuccess && !isCartOpen && !isOrdersDrawerOpen && (
+        <div className={`fixed inset-x-4 max-w-xl mx-auto z-40 animate-slide-up ${
+          cart.length > 0 ? 'bottom-20' : 'bottom-4'
+        }`}>
+          <button
+            type="button"
+            onClick={() => openActiveOrderModal(activeTrackedOrder.id)}
+            className="w-full p-3 rounded-2xl bg-gradient-to-r from-stone-900 via-stone-800 to-stone-900 text-white shadow-xl border border-emerald-500/40 flex items-center justify-between transition-transform active:scale-98"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="relative flex h-3 w-3 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              </div>
+              <div className="text-left">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-bold text-emerald-400">
+                    Order {activeTrackedOrder.displayNumber}
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-600/40 uppercase tracking-wider">
+                    {activeTrackedOrder.status === 'READY_FOR_COLLECTION' ? 'Ready for Collection!' :
+                     activeTrackedOrder.status === 'OUT_FOR_DELIVERY' ? 'Out for Delivery!' :
+                     activeTrackedOrder.status === 'COOKING' ? 'Cooking at Wok' : 'Kitchen Confirmed'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-stone-300 mt-0.5">
+                  {activeTrackedOrder.estimatedReadyAt 
+                    ? `Estimated: ~${formatReadyTime(activeTrackedOrder.estimatedReadyAt)}` 
+                    : 'Tap to track live progress'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 text-xs font-bold text-emerald-400">
+              <span>Track</span>
+              <ChevronRight className="w-4 h-4" />
+            </div>
+          </button>
+        </div>
+      )}
+
       {/* ================= FLOATING CART BAR ================= */}
       {cart.length > 0 && !isCartOpen && (
         <div className="fixed bottom-4 inset-x-4 max-w-xl mx-auto z-40 animate-slide-up">
           <button
-            onClick={() => setIsCartOpen(true)}
+            onClick={openCart}
             className="w-full p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-imperial-900 via-imperial-800 to-imperial-900 text-white shadow-xl border border-gold-500/40 flex items-center justify-between active:scale-98 transition-transform"
           >
             <div className="flex items-center gap-3">
@@ -1014,15 +1365,25 @@ export default function StorefrontPage() {
           <div className="w-full max-w-md bg-white h-full flex flex-col shadow-2xl">
             {/* Drawer Header */}
             <div className="p-4 sm:p-5 border-b border-stone-100 flex items-center justify-between bg-stone-50">
+              <button
+                type="button"
+                onClick={closeCart}
+                className="flex items-center gap-1.5 text-xs font-bold text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-100 border border-stone-200 px-3 py-1.5 rounded-xl shadow-sm transition-all active:scale-95"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Menu</span>
+              </button>
               <div className="flex items-center gap-2">
-                <ShoppingBag className="w-5 h-5 text-imperial-800" />
-                <h3 className="font-bold text-stone-900 text-base">
-                  Your Order ({cart.reduce((a, b) => a + b.quantity, 0)} items)
+                <ShoppingBag className="w-4 h-4 text-imperial-800" />
+                <h3 className="font-bold text-stone-900 text-sm">
+                  Basket ({cart.reduce((a, b) => a + b.quantity, 0)})
                 </h3>
               </div>
               <button
-                onClick={() => setIsCartOpen(false)}
+                type="button"
+                onClick={closeCart}
                 className="w-8 h-8 rounded-full bg-stone-200/60 hover:bg-stone-200 flex items-center justify-center text-stone-600"
+                aria-label="Close Basket"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1478,16 +1839,176 @@ export default function StorefrontPage() {
               {/* ACTION BUTTONS */}
               <div className="pt-2">
                 <button
-                  onClick={() => setOrderSuccess(null)}
-                  className="w-full py-3 rounded-xl bg-imperial-800 hover:bg-imperial-900 text-white font-bold text-xs transition-colors shadow-md"
+                  type="button"
+                  onClick={closeOrderSuccess}
+                  className="w-full py-3 rounded-xl bg-imperial-800 hover:bg-imperial-900 active:scale-98 text-white font-bold text-xs transition-colors shadow-md flex items-center justify-center gap-1.5"
                 >
-                  Back to Menu
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to Menu</span>
                 </button>
               </div>
             </div>
           </div>
         );
       })()}
+
+      {/* ================= MY ORDERS DRAWER (NO REGISTRATION REQUIRED) ================= */}
+      {isOrdersDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-stone-950/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white h-full flex flex-col shadow-2xl">
+            {/* Drawer Header */}
+            <div className="p-4 sm:p-5 border-b border-stone-100 flex items-center justify-between bg-stone-50">
+              <button
+                type="button"
+                onClick={closeOrdersDrawer}
+                className="flex items-center gap-1.5 text-xs font-bold text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-100 border border-stone-200 px-3 py-1.5 rounded-xl shadow-sm transition-all active:scale-95"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Menu</span>
+              </button>
+              <div className="flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-imperial-800" />
+                <h3 className="font-bold text-stone-900 text-sm">
+                  My Orders (Today)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeOrdersDrawer}
+                className="w-8 h-8 rounded-full bg-stone-200/60 hover:bg-stone-200 flex items-center justify-center text-stone-600"
+                aria-label="Close My Orders"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Drawer Content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+              <div className="p-3 bg-amber-50/70 rounded-2xl border border-amber-200/60 text-xs text-amber-900 flex items-start gap-2.5">
+                <Clock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">No Account Required</span>
+                  <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                    Orders placed on this device are saved automatically for 24 hours. The kitchen updates your live food status here in real time.
+                  </p>
+                </div>
+              </div>
+
+              {recentOrders.length === 0 ? (
+                <div className="text-center py-12 px-4 space-y-3">
+                  <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
+                    <Receipt className="w-7 h-7" />
+                  </div>
+                  <h4 className="font-bold text-stone-900 text-sm">No Orders Today</h4>
+                  <p className="text-xs text-stone-500 max-w-xs mx-auto">
+                    When you place an order, you will be able to track live kitchen preparation and collection status right here.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={closeOrdersDrawer}
+                    className="mt-3 px-4 py-2 rounded-xl bg-imperial-800 hover:bg-imperial-900 text-white font-bold text-xs"
+                  >
+                    Browse Menu
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  {recentOrders.map((ord) => {
+                    const isCooking = ord.status === 'COOKING';
+                    const isReady = ord.status === 'READY_FOR_COLLECTION' || ord.status === 'OUT_FOR_DELIVERY';
+                    const isCompleted = ord.status === 'COMPLETED';
+                    const isCancelled = ord.status === 'CANCELLED';
+
+                    return (
+                      <div
+                        key={ord.id}
+                        className={`p-4 rounded-2xl border transition-all ${
+                          isReady
+                            ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-500/20 shadow-sm'
+                            : isCooking
+                            ? 'bg-amber-50/40 border-amber-300 ring-1 ring-amber-500/20'
+                            : 'bg-white border-stone-200 shadow-sm'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-xs text-imperial-800 bg-imperial-50 px-2 py-0.5 rounded border border-imperial-200">
+                              Order {ord.displayNumber}
+                            </span>
+                            <span className="text-[11px] text-stone-500">
+                              {new Date(ord.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                            isReady
+                              ? 'bg-emerald-600 text-white animate-pulse'
+                              : isCooking
+                              ? 'bg-amber-600 text-white'
+                              : isCancelled
+                              ? 'bg-red-600 text-white'
+                              : isCompleted
+                              ? 'bg-stone-200 text-stone-700'
+                              : 'bg-blue-600 text-white'
+                          }`}>
+                            {isReady
+                              ? ord.fulfillmentType === 'DELIVERY' ? 'Out for Delivery' : 'Ready for Collection!'
+                              : isCooking
+                              ? 'Cooking at Wok'
+                              : ord.status}
+                          </span>
+                        </div>
+
+                        {/* Order Timeline Visualizer */}
+                        <div className="py-2.5">
+                          <div className="grid grid-cols-4 gap-1 text-[9px] font-bold text-center mb-1.5">
+                            <span className={ord.status !== 'CANCELLED' ? 'text-imperial-900' : 'text-stone-400'}>Received</span>
+                            <span className={['CONFIRMED', 'COOKING', 'READY_FOR_COLLECTION', 'OUT_FOR_DELIVERY', 'COMPLETED'].includes(ord.status) ? 'text-imperial-900' : 'text-stone-400'}>Confirmed</span>
+                            <span className={['COOKING', 'READY_FOR_COLLECTION', 'OUT_FOR_DELIVERY', 'COMPLETED'].includes(ord.status) ? 'text-amber-700' : 'text-stone-400'}>Cooking</span>
+                            <span className={isReady || isCompleted ? 'text-emerald-700' : 'text-stone-400'}>
+                              {ord.fulfillmentType === 'DELIVERY' ? 'Out' : 'Ready'}
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden flex">
+                            <div className={`h-full ${ord.status !== 'CANCELLED' ? 'bg-imperial-800 w-1/4' : 'w-0'}`} />
+                            <div className={`h-full ${['CONFIRMED', 'COOKING', 'READY_FOR_COLLECTION', 'OUT_FOR_DELIVERY', 'COMPLETED'].includes(ord.status) ? 'bg-imperial-800 w-1/4' : 'w-0'}`} />
+                            <div className={`h-full ${['COOKING', 'READY_FOR_COLLECTION', 'OUT_FOR_DELIVERY', 'COMPLETED'].includes(ord.status) ? 'bg-amber-500 w-1/4' : 'w-0'}`} />
+                            <div className={`h-full ${isReady || isCompleted ? 'bg-emerald-500 w-1/4' : 'w-0'}`} />
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-stone-600 line-clamp-2 mt-1">
+                          {ord.itemSummary}
+                        </p>
+
+                        <div className="mt-3 pt-2.5 border-t border-stone-200/80 flex items-center justify-between">
+                          <div>
+                            <span className="font-black text-stone-900 text-xs block">
+                              £{(ord.totalPence / 100).toFixed(2)} · {ord.fulfillmentType}
+                            </span>
+                            {ord.estimatedReadyAt && (
+                              <span className="text-[10px] text-stone-500 block">
+                                Est: ~{formatReadyTime(ord.estimatedReadyAt)}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openActiveOrderModal(ord.id)}
+                            className="px-3 py-1.5 rounded-lg bg-imperial-800 hover:bg-imperial-900 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition-transform active:scale-95"
+                          >
+                            <span>Live Progress</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

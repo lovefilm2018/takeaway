@@ -158,7 +158,7 @@ export interface OrderItem {
   name: string;
   chineseName?: string;
   quantity: number;
-  size?: 'REGULAR' | 'LARGE';
+  size?: 'REGULAR' | 'LARGE' | string;
   unitPricePence: number;
   modifiers: OrderItemModifierSelection[];
   lineTotalPence: number;

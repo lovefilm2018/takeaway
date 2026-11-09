@@ -91,7 +91,7 @@
 - **Production URL:** `https://takeaway-751524926590.europe-west2.run.app`
 - **Kitchen Portal URL:** `https://takeaway-751524926590.europe-west2.run.app/kitchen`
 - **Restaurant Admin URL:** `https://takeaway-751524926590.europe-west2.run.app/admin`
-- **Active Container Revision:** `takeaway-00006-6hh` (serving 100% of traffic)
+- **Active Container Revision:** `takeaway-00008-vws` (serving 100% of traffic)
 
 ### Completed Milestones:
 1. **Architectural Deep Research:** Master blueprint synthesized from the 40-page Gemini Argon Deep Research report.
@@ -102,7 +102,11 @@
 6. **Prominent Customer Confirmation Waiting Screen:** Displays bold *"Please wait whilst the restaurant confirms your order and wait time"* status banner with animated spinner while kitchen terminal chimes.
 7. **Restaurant Admin Portal (`/admin`):** Complete management portal allowing partner restaurants to set opening hours (single shift or lunch/evening split shifts), auto-open vs manual daily open mode, instant emergency closures, inline dish price editing in £.pp, photo changes, and new dish creation.
 8. **Live Firestore Order & Config Bus:** Cross-device sync powered by native Google Cloud Firestore in `europe-west2`.
-9. **Containerization & GCP Cloud Run Deployment:** Multi-stage Docker container deployed to Google Cloud Run in `europe-west2` on revision `takeaway-00005-tw6`.
+9. **Staff PIN Security Gate (PIN: 9119):** Route-level protection on `/kitchen`, `/admin`, and `/api/orders` endpoints.
+10. **Crispy Duck Portion Sizing Engine:** Dedicated 3-tier portion selector for Crispy Aromatic Duck (1/4 Duck £11.80, 1/2 Duck £22.50, Whole Duck £39.00) and clear ball-count labels for Chicken Balls (5 Balls £4.80 vs 10 Balls £7.20).
+11. **Mobile History Navigation & App Exit Prevention:** Integrated HTML5 History API (`pushState`/`popstate`) so device back button or swipe gesture cleanly closes basket drawer and modals without leaving the application.
+12. **Zero-Registration 24h "My Orders" Live Tracker:** Client-side local persistence storing recent orders for 24 hours, live polling `/api/orders/[id]` every 2.5s, top header tracking pill, persistent floating order status bar, slide-over timeline drawer, and celebratory audio chime upon food completion.
+13. **Containerization & GCP Cloud Run Deployment:** Multi-stage Docker container deployed to Google Cloud Run in `europe-west2` on revision `takeaway-00008-vws`.
 
 ### Next Session Immediate Objectives (Resume Here):
 1. **Stripe Connect Direct Charges:** Implement test mode Stripe Elements (Apple Pay, Google Pay, standard card processing) with 5% application fee routed to platform account.
