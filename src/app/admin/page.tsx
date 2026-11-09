@@ -37,6 +37,9 @@ const DAYS_OF_WEEK: { key: keyof WeeklySchedule; label: string; traditionalNote?
 ];
 
 export default function RestaurantAdminPortal() {
+  const [pinAuthenticated, setPinAuthenticated] = useState<boolean>(false);
+  const [pinInput, setPinInput] = useState<string>('');
+  const [pinError, setPinError] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'hours' | 'menu'>('hours');
   const [settings, setSettings] = useState<RestaurantSettings>(DEFAULT_RESTAURANT_SETTINGS);
   const [storeStatus, setStoreStatus] = useState<StoreStatusResult | null>(null);
@@ -44,6 +47,31 @@ export default function RestaurantAdminPortal() {
   const [customDishes, setCustomDishes] = useState<MenuItem[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Check stored PIN on load
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('grb_staff_pin');
+      if (saved === '9119') {
+        setPinAuthenticated(true);
+      }
+    } catch {}
+  }, []);
+
+  const handlePinSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (pinInput.trim() === '9119') {
+      try {
+        localStorage.setItem('grb_staff_pin', '9119');
+        document.cookie = 'grb_staff_pin=9119; path=/; max-age=2592000; SameSite=Lax';
+      } catch {}
+      setPinAuthenticated(true);
+      setPinError(false);
+    } else {
+      setPinError(true);
+      setPinInput('');
+    }
+  };
 
   // Menu Search & Filter
   const [menuSearch, setMenuSearch] = useState('');
@@ -97,9 +125,13 @@ export default function RestaurantAdminPortal() {
   const saveSettings = async (updatedSettings: RestaurantSettings) => {
     setIsSaving(true);
     try {
+      const pin = localStorage.getItem('grb_staff_pin') || '9119';
       const res = await fetch('/api/restaurant', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Staff-PIN': pin,
+        },
         body: JSON.stringify({ settings: updatedSettings }),
       });
       if (res.ok) {
@@ -154,9 +186,13 @@ export default function RestaurantAdminPortal() {
     setMenuOverrides(updatedOverrides);
 
     try {
+      const pin = localStorage.getItem('grb_staff_pin') || '9119';
       await fetch('/api/restaurant', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Staff-PIN': pin,
+        },
         body: JSON.stringify({ menuOverrides: updatedOverrides }),
       });
       showToast(`Dish #${dishCode} updated!`);
@@ -190,9 +226,13 @@ export default function RestaurantAdminPortal() {
     setIsAddDishModalOpen(false);
 
     try {
+      const pin = localStorage.getItem('grb_staff_pin') || '9119';
       await fetch('/api/restaurant', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Staff-PIN': pin,
+        },
         body: JSON.stringify({ customDishes: updatedCustom }),
       });
       showToast(`Added new dish #${created.dishCode}: ${created.name}!`);
@@ -219,6 +259,52 @@ export default function RestaurantAdminPortal() {
 
   return (
     <div className="min-h-screen bg-stone-900 text-stone-100 flex flex-col font-sans select-none pb-20">
+      {/* ================= PIN SECURITY GATE ================= */}
+      {!pinAuthenticated && (
+        <div className="fixed inset-0 z-50 bg-stone-950 flex flex-col items-center justify-center p-4">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center mx-auto mb-4">
+              <Store className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-black text-white mb-1">Restaurant Admin Security</h2>
+            <p className="text-xs text-stone-400 mb-6">Enter 4-Digit PIN to manage hours, menu & prices</p>
+
+            <form onSubmit={handlePinSubmit} className="space-y-4">
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                autoFocus
+                placeholder="• • • •"
+                value={pinInput}
+                onChange={(e) => {
+                  setPinInput(e.target.value);
+                  setPinError(false);
+                }}
+                className={`w-full py-4 text-center tracking-[0.5em] text-2xl font-black rounded-2xl border bg-stone-950 text-white placeholder-stone-600 focus:outline-none ${
+                  pinError ? 'border-red-500 bg-red-950/20 text-red-300' : 'border-stone-700 focus:border-amber-500'
+                }`}
+              />
+
+              {pinError && (
+                <p className="text-xs text-red-400 font-bold">Incorrect PIN. Please re-enter.</p>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black rounded-xl text-sm transition-colors shadow-lg"
+              >
+                Unlock Admin Portal
+              </button>
+            </form>
+
+            <p className="text-[11px] text-stone-500 mt-6">
+              Default pilot PIN: <span className="font-mono text-stone-400 font-bold">9119</span>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ================= FLOATING TOAST FEEDBACK ================= */}
       {toastMessage && (
         <div className="fixed top-16 inset-x-4 max-w-sm mx-auto z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold animate-fade-in">

@@ -199,5 +199,6 @@ export interface Order {
   surgeRequestedAt?: string;
   surgeExpiresAt?: string;
   createdAt: string;
+  updatedAt?: string;
   driverDispatchToken?: string;
 }

@@ -29,6 +29,9 @@ import { GOLDEN_RICE_BOWL_RESTAURANT, GOLDEN_RICE_BOWL_MENU } from '../../data/g
 import { Order, OrderStatus, KitchenThrottleMode } from '../../types/domain';
 
 export default function KitchenPortalPage() {
+  const [pinAuthenticated, setPinAuthenticated] = useState<boolean>(false);
+  const [pinInput, setPinInput] = useState<string>('');
+  const [pinError, setPinError] = useState<boolean>(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
@@ -42,6 +45,32 @@ export default function KitchenPortalPage() {
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   const [isPolling, setIsPolling] = useState(false);
+
+  // Check stored PIN on load
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('grb_staff_pin');
+      if (saved === '9119') {
+        setPinAuthenticated(true);
+      }
+    } catch {}
+  }, []);
+
+  const handlePinSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (pinInput.trim() === '9119') {
+      try {
+        localStorage.setItem('grb_staff_pin', '9119');
+        document.cookie = 'grb_staff_pin=9119; path=/; max-age=2592000; SameSite=Lax';
+      } catch {}
+      setPinAuthenticated(true);
+      setPinError(false);
+      unlockAudioContext();
+    } else {
+      setPinError(true);
+      setPinInput('');
+    }
+  };
 
   // Keep live 1-second ticker for surge countdowns
   useEffect(() => {
@@ -63,9 +92,15 @@ export default function KitchenPortalPage() {
 
   // Load orders from live Cloud Firestore API + localStorage cache fallback
   const loadOrders = async () => {
+    // Pause background polling if tab is hidden
+    if (typeof document !== 'undefined' && document.hidden) return;
     setIsPolling(true);
     try {
-      const res = await fetch('/api/orders', { cache: 'no-store' });
+      const pin = localStorage.getItem('grb_staff_pin') || '9119';
+      const res = await fetch('/api/orders', { 
+        cache: 'no-store',
+        headers: { 'X-Staff-PIN': pin }
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.orders && Array.isArray(data.orders)) {
@@ -178,9 +213,13 @@ export default function KitchenPortalPage() {
     });
 
     try {
+      const pin = localStorage.getItem('grb_staff_pin') || '9119';
       await fetch(`/api/orders/${orderId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Staff-PIN': pin,
+        },
         body: JSON.stringify(updates),
       });
     } catch (err) {
@@ -228,6 +267,52 @@ export default function KitchenPortalPage() {
       className="min-h-screen bg-stone-900 text-stone-100 flex flex-col font-sans select-none"
       onClick={unlockAudioContext}
     >
+      {/* ================= PIN SECURITY GATE ================= */}
+      {!pinAuthenticated && (
+        <div className="fixed inset-0 z-50 bg-stone-950 flex flex-col items-center justify-center p-4">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center mx-auto mb-4">
+              <UtensilsCrossed className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-black text-white mb-1">Kitchen Pass Security</h2>
+            <p className="text-xs text-stone-400 mb-6">Enter 4-Digit Staff PIN to unlock live order terminal</p>
+
+            <form onSubmit={handlePinSubmit} className="space-y-4">
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                autoFocus
+                placeholder="• • • •"
+                value={pinInput}
+                onChange={(e) => {
+                  setPinInput(e.target.value);
+                  setPinError(false);
+                }}
+                className={`w-full py-4 text-center tracking-[0.5em] text-2xl font-black rounded-2xl border bg-stone-950 text-white placeholder-stone-600 focus:outline-none ${
+                  pinError ? 'border-red-500 bg-red-950/20 text-red-300' : 'border-stone-700 focus:border-amber-500'
+                }`}
+              />
+
+              {pinError && (
+                <p className="text-xs text-red-400 font-bold">Incorrect PIN. Please re-enter.</p>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black rounded-xl text-sm transition-colors shadow-lg"
+              >
+                Unlock Terminal
+              </button>
+            </form>
+
+            <p className="text-[11px] text-stone-500 mt-6">
+              Default pilot PIN: <span className="font-mono text-stone-400 font-bold">9119</span>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ================= AUDIO UNLOCK BANNER IF SUSPENDED ================= */}
       {!audioUnlocked && (
         <div 
