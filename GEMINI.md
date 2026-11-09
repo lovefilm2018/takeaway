@@ -73,10 +73,14 @@
 
 ## 4. Implemented Routes & Application Structure
 
-- `/`: Customer-facing mobile-first ordering storefront (The Golden Rice Bowl) with category pill bar, instant dish code search, bottom-sheet modifier customization, and guest checkout.
-- `/kitchen`: Tablet-optimized Kitchen & Staff Management Portal with looping chime alerts, 1-tap ETA acceptance (15m/25m/40m/60m), 80mm ESC/POS thermal ticket previewer, and instant "86" out-of-stock toggles.
-- `src/data/goldenRiceBowlMenu.ts`: Complete transcribed August 2026 takeaway menu catalog with authentic dish codes (`#1` to `#158`, `#Z1`–`#Z10`, Set Dinners `A`–`D3`), prices, and bilingual Chinese names.
-- `scripts/generate_food_images.ts`: Automated AI food photography generator.
+- `/`: Customer-facing mobile-first ordering storefront (The Golden Rice Bowl) with category pill bar, instant dish code search, bottom-sheet side add-ons, smart cart upsell recommendations, live order tracking with prominent kitchen review progress, and closed-store order prevention.
+- `/kitchen`: Tablet-optimized Kitchen & Staff Pass Terminal with persistent audio chimes, audio unlock banner, two-tier ETA buttons (15m–40m auto-confirm, 60m–3h peak surge), custom ETA slider/increment modal, 90-second surge customer confirmation handshake, 80mm ESC/POS thermal ticket previewer, and instant "86" out-of-stock toggles.
+- `/admin`: Restaurant Management Portal with master store status switch (OPEN/CLOSED), operating mode selector (Auto-Open by schedule vs Manual daily control), 7-day schedule matrix with 1x daily or 2x daily split shift support (Lunch & Evening), custom emergency notice banner, inline dish price editing, photo replacement, and custom dish creator.
+- `/api/orders`: Live Cloud Firestore order bus (GET recent orders, POST new orders).
+- `/api/orders/[id]`: Single-order polling and state transition patch endpoint (GET status, PATCH status/ETA/surge timers).
+- `/api/restaurant`: Live restaurant configuration endpoint (GET/PATCH opening hours, autoOpenMode, manualIsOpen, emergencyNotice, menuOverrides, and customDishes in Cloud Firestore).
+- `src/data/goldenRiceBowlMenu.ts`: Complete transcribed takeaway catalog with 71 dishes across all 16 categories with authentic dish codes (`#1` to `#158`, `#Z1`–`#Z10`, Set Dinners `A`–`D3`), prices, and bilingual Chinese names.
+- `public/images/dishes/`: 100% photorealistic image coverage (71 of 71 dishes) generated via Pollinations Flux AI model.
 
 ---
 
@@ -86,18 +90,23 @@
 - **Billing Tier:** Blaze Plan
 - **Production URL:** `https://takeaway-751524926590.europe-west2.run.app`
 - **Kitchen Portal URL:** `https://takeaway-751524926590.europe-west2.run.app/kitchen`
+- **Restaurant Admin URL:** `https://takeaway-751524926590.europe-west2.run.app/admin`
+- **Active Container Revision:** `takeaway-00005-tw6` (serving 100% of traffic)
 
 ### Completed Milestones:
-1. **Architectural Deep Research:** Formulated master blueprint synthesized from the 40-page Gemini Argon Deep Research report (`docs/DEEP_RESEARCH_BLUEPRINT.md` & `implementation_plan.md`).
-2. **Menu Ingestion:** Fully transcribed August 2026 Golden Rice Bowl physical menu catalog (`src/data/goldenRiceBowlMenu.ts`) covering all 16 categories, authentic dish codes, dual sizing, 14 UK allergens, and bilingual Chinese names.
-3. **AI Food Photography Batch:** Generated 55 high-definition dish photos across all 16 categories using Pollinations Flux model (`scripts/generate_food_images.ts`), cached in `public/images/dishes/`, and mapped cleanly into the menu data.
-4. **Customer Storefront (`/`):** Mobile-first Next.js 15 PWA with sticky category pills, instant dish-code search, bottom-sheet side swaps (Egg Fried Rice, Chips, Half & Half), allergen declaration gate, and guest checkout.
-5. **Kitchen Tablet Portal (`/kitchen`):** High-contrast tablet UI with looping Web Audio chime, 1-tap ETA acceptance (15m, 25m, 40m, 60m), 80mm ESC/POS thermal ticket previewer (bilingual kitchen pass docket + customer simplified VAT receipt), and 86 stock toggles.
-6. **Containerization & GCP Cloud Run Deployment:** Standalone Next.js multi-stage Docker build deployed to Google Cloud Run in `europe-west2` with automatic SSL, scale-to-zero cold start optimization, and Google Frontend CDN caching.
+1. **Architectural Deep Research:** Master blueprint synthesized from the 40-page Gemini Argon Deep Research report.
+2. **Menu Ingestion & 100% Dish Photography:** Transcribed all 16 categories of The Golden Rice Bowl menu catalog. Generated and linked 71 high-definition dish photos covering 100% of the active menu.
+3. **Customer Storefront (`/`):** Mobile-first Next.js 15 PWA with sticky category pills, instant dish-code search, bottom-sheet side add-ons, smart cart upsell recommendations, and Natasha's Law allergen gate.
+4. **Kitchen Tablet Portal (`/kitchen`):** High-contrast tablet UI with looping Web Audio chime, audio unlock banner, two-tier ETA buttons (15m–40m auto-confirm, 60m–3h surge), custom ETA slider/increment modal (15-240m), and 80mm ESC/POS thermal ticket previewer.
+5. **Surge ETA Customer Handshake (90s Countdown):** Real-time multi-device sync between customer phone and kitchen tablet. When kitchen sets >45m wait time, customer is prompted with a 90s confirmation modal (`Accept` or `Cancel`, auto-accepting at 0s so customers keep their place in the queue).
+6. **Prominent Customer Confirmation Waiting Screen:** Displays bold *"Please wait whilst the restaurant confirms your order and wait time"* status banner with animated spinner while kitchen terminal chimes.
+7. **Restaurant Admin Portal (`/admin`):** Complete management portal allowing partner restaurants to set opening hours (single shift or lunch/evening split shifts), auto-open vs manual daily open mode, instant emergency closures, inline dish price editing in £.pp, photo changes, and new dish creation.
+8. **Live Firestore Order & Config Bus:** Cross-device sync powered by native Google Cloud Firestore in `europe-west2`.
+9. **Containerization & GCP Cloud Run Deployment:** Multi-stage Docker container deployed to Google Cloud Run in `europe-west2` on revision `takeaway-00005-tw6`.
 
 ### Next Session Immediate Objectives (Resume Here):
-1. **Active Order Bus:** Connect Firebase Cloud Firestore (`active_orders/{tenant_id}/orders/{order_id}`) for live websocket push between customer mobile devices and kitchen tablets.
-2. **Stripe Connect Sandbox:** Wire up Stripe Connect Direct Charge payment intents with Apple Pay / Google Pay support in test mode.
-3. **Custom Domain:** Map `orders.goldenricebowl.co.uk` to Cloud Run via Google Cloud DNS / Cloud Load Balancing.
+1. **Stripe Connect Direct Charges:** Implement test mode Stripe Elements (Apple Pay, Google Pay, standard card processing) with 5% application fee routed to platform account.
+2. **Hardware Printing Pipeline:** Connect Sunmi / Star 80mm ESC/POS cloud printer over WebSocket/MQTT for automated kitchen pass ticket printing upon order acceptance.
+3. **Custom Domain Mapping:** Map `orders.goldenricebowl.co.uk` to Cloud Run via Google Cloud DNS.
 
 
