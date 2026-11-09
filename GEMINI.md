@@ -91,7 +91,7 @@
 - **Production URL:** `https://takeaway-751524926590.europe-west2.run.app`
 - **Kitchen Portal URL:** `https://takeaway-751524926590.europe-west2.run.app/kitchen`
 - **Restaurant Admin URL:** `https://takeaway-751524926590.europe-west2.run.app/admin`
-- **Active Container Revision:** `takeaway-00005-tw6` (serving 100% of traffic)
+- **Active Container Revision:** `takeaway-00006-6hh` (serving 100% of traffic)
 
 ### Completed Milestones:
 1. **Architectural Deep Research:** Master blueprint synthesized from the 40-page Gemini Argon Deep Research report.

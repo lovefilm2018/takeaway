@@ -483,24 +483,14 @@ export default function StorefrontPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Link 
-                href="/admin" 
-                target="_blank"
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-900/60 hover:bg-stone-900 text-gold-300 border border-gold-500/30 flex items-center gap-1 transition-colors"
-                title="Open Restaurant Admin Portal"
-              >
-                <span>Admin</span>
-              </Link>
-              <Link 
-                href="/kitchen" 
-                target="_blank"
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-900/60 hover:bg-stone-900 text-gold-300 border border-gold-500/30 flex items-center gap-1 transition-colors"
-                title="Open Kitchen Management Tablet"
-              >
-                <span>Kitchen</span>
-                <ChevronRight className="w-3 h-3" />
-              </Link>
+            <div className="text-right hidden sm:block">
+              <span className="text-xs text-stone-300 flex items-center gap-1.5 justify-end">
+                <Clock className={`w-3.5 h-3.5 ${storeStatus?.isOpen ? 'text-emerald-400' : 'text-red-400'}`} />
+                <span className={`font-semibold ${storeStatus?.isOpen ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {storeStatus?.isOpen ? 'Open Now' : 'Store Closed'}
+                </span>
+                <span className="text-stone-400">· {storeStatus?.nextOpeningText || 'Heathfield'}</span>
+              </span>
             </div>
           </div>
 
@@ -529,13 +519,9 @@ export default function StorefrontPage() {
               </button>
             </div>
 
-            <div className="text-right hidden sm:block">
-              <span className="text-xs text-stone-300 flex items-center gap-1 justify-end">
-                <Clock className={`w-3.5 h-3.5 ${storeStatus?.isOpen ? 'text-emerald-400' : 'text-red-400'}`} />
-                <span className={`font-semibold ${storeStatus?.isOpen ? 'text-emerald-300' : 'text-red-300'}`}>
-                  {storeStatus?.isOpen ? 'Open Now' : 'Store Closed'}
-                </span>
-                <span className="text-stone-400">· {storeStatus?.nextOpeningText || 'Heathfield Station'}</span>
+            <div className="text-xs text-stone-300 font-semibold sm:hidden">
+              <span className={storeStatus?.isOpen ? 'text-emerald-300' : 'text-red-300'}>
+                {storeStatus?.isOpen ? '● Open' : '● Closed'}
               </span>
             </div>
           </div>
@@ -545,22 +531,14 @@ export default function StorefrontPage() {
       {/* ================= STORE CLOSED BANNER ================= */}
       {storeStatus && !storeStatus.isOpen && (
         <div className="bg-red-950 border-b border-red-800 text-red-100 px-4 py-3 shadow-md animate-fade-in">
-          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs sm:text-sm">
-            <div className="flex items-start sm:items-center gap-2.5">
-              <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5 sm:mt-0 animate-pulse" />
-              <div>
-                <span className="font-black uppercase tracking-wide text-white">Restaurant Currently Closed for Orders</span>
-                <p className="text-[11px] sm:text-xs text-red-200 mt-0.5">
-                  {emergencyNotice || storeStatus.reason} — <strong className="text-white underline decoration-amber-400">{storeStatus.nextOpeningText}</strong>. Feel free to browse our menu below!
-                </p>
-              </div>
+          <div className="max-w-4xl mx-auto flex items-center gap-2.5 text-xs sm:text-sm">
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 animate-pulse" />
+            <div>
+              <span className="font-black uppercase tracking-wide text-white">Restaurant Currently Closed for Orders</span>
+              <p className="text-[11px] sm:text-xs text-red-200 mt-0.5">
+                {emergencyNotice || storeStatus.reason} — <strong className="text-white underline decoration-amber-400">{storeStatus.nextOpeningText}</strong>. Feel free to browse our menu below!
+              </p>
             </div>
-            <Link
-              href="/admin"
-              className="px-3 py-1.5 rounded-lg bg-red-900 hover:bg-red-800 text-xs font-bold text-red-100 whitespace-nowrap border border-red-700 text-center self-start sm:self-auto"
-            >
-              Restaurant Admin
-            </Link>
           </div>
         </div>
       )}
@@ -1498,17 +1476,10 @@ export default function StorefrontPage() {
               </div>
 
               {/* ACTION BUTTONS */}
-              <div className="space-y-2 pt-2">
-                <Link
-                  href="/kitchen"
-                  target="_blank"
-                  className="w-full py-3 rounded-xl bg-imperial-800 hover:bg-imperial-900 text-white font-bold text-xs block"
-                >
-                  Open Kitchen Tablet Screen (See Staff Terminal)
-                </Link>
+              <div className="pt-2">
                 <button
                   onClick={() => setOrderSuccess(null)}
-                  className="w-full py-2.5 rounded-xl border border-stone-200 text-stone-600 hover:text-stone-900 text-xs font-semibold"
+                  className="w-full py-3 rounded-xl bg-imperial-800 hover:bg-imperial-900 text-white font-bold text-xs transition-colors shadow-md"
                 >
                   Back to Menu
                 </button>
