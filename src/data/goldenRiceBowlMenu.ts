@@ -86,6 +86,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-1',
     dishCode: '1',
+    imageUrl: '/images/dishes/1.jpg',
     name: "House Mixed Hors D'oeuvres (For Two)",
     chineseName: '招牌热拼',
     description: 'Prawn toast (2 slices), spare ribs, crispy seaweed, mini vegetable rolls & curry triangle puffs.',
@@ -96,6 +97,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-2',
     dishCode: '2',
+    imageUrl: '/images/dishes/2.jpg',
     name: 'Sesame Prawns on Toast (2 slices)',
     chineseName: '虾多士',
     category: 'Starters',
@@ -105,6 +107,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-3',
     dishCode: '3',
+    imageUrl: '/images/dishes/3.jpg',
     name: 'Crispy Seaweed',
     chineseName: '炸海草',
     category: 'Starters',
@@ -115,6 +118,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-g2',
     dishCode: 'G2',
+    imageUrl: '/images/dishes/G2.jpg',
     name: 'Salt & Pepper King Prawns (Large)',
     chineseName: '椒盐大虾',
     description: 'King prawns deep fried with spices, chilli, onions & garlic.',
@@ -137,6 +141,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-g4',
     dishCode: 'G4',
+    imageUrl: '/images/dishes/G4.jpg',
     name: 'Peking Style Ribs (Large)',
     chineseName: '京都排骨',
     description: 'Spare ribs in rich sweet red wine sauce.',
@@ -147,6 +152,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-g5',
     dishCode: 'G5',
+    imageUrl: '/images/dishes/G5.jpg',
     name: 'Salt & Pepper Spare Ribs (Large)',
     chineseName: '椒盐排骨',
     description: 'Spare ribs deep fried with spices, chilli, onions & garlic.',
@@ -171,6 +177,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-g91',
     dishCode: 'G91',
+    imageUrl: '/images/dishes/G91.jpg',
     name: 'Crispy Duck Pancake Rolls (4)',
     chineseName: '鸭卷',
     description: 'Served with hoi sin sauce.',
@@ -181,6 +188,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-t1',
     dishCode: 'T1',
+    imageUrl: '/images/dishes/T1.jpg',
     name: 'Salt & Pepper Chicken',
     chineseName: '椒盐鸡',
     category: 'Starters',
@@ -191,6 +199,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-t2',
     dishCode: 'T2',
+    imageUrl: '/images/dishes/T2.jpg',
     name: 'Salt & Pepper Squid (Large)',
     chineseName: '椒盐鱿鱼',
     category: 'Starters',
@@ -201,6 +210,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-t3',
     dishCode: 'T3',
+    imageUrl: '/images/dishes/T3.jpg',
     name: 'Salt & Pepper Chips',
     chineseName: '椒盐薯条',
     category: 'Starters',
@@ -221,6 +231,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-t10',
     dishCode: 'T10',
+    imageUrl: '/images/dishes/T10.jpg',
     name: 'Pan Fried Dumplings (6)',
     chineseName: '锅贴',
     description: 'Served with ginger vinegar dip.',
@@ -233,6 +244,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'soup-4',
     dishCode: '4',
+    imageUrl: '/images/dishes/4.jpg',
     name: 'Wun Tun Soup',
     chineseName: '云吞汤',
     category: 'Soup',
@@ -251,6 +263,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'soup-6',
     dishCode: '6',
+    imageUrl: '/images/dishes/6.jpg',
     name: 'Chicken & Sweet Corn Soup',
     chineseName: '鸡肉粟米汤',
     category: 'Soup',
@@ -260,6 +273,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'soup-g7',
     dishCode: 'G7',
+    imageUrl: '/images/dishes/G7.jpg',
     name: 'Peking Hot & Sour Soup',
     chineseName: '酸辣汤',
     category: 'Soup',
@@ -272,6 +286,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'rice-8',
     dishCode: '8',
+    imageUrl: '/images/dishes/8.jpg',
     name: 'House Special Mixed Rice',
     chineseName: '招牌饭',
     description: 'Includes beef, barbecued pork, chicken, pork, king prawn & vegetables.',
@@ -282,6 +297,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'rice-9',
     dishCode: '9',
+    imageUrl: '/images/dishes/9.jpg',
     name: 'Special Fried Rice',
     chineseName: '扬州炒饭',
     category: 'Rice Dishes',
@@ -292,6 +308,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'rice-10',
     dishCode: '10',
+    imageUrl: '/images/dishes/10.jpg',
     name: 'Singapore Fried Rice',
     chineseName: '星洲炒饭',
     category: 'Rice Dishes',
@@ -303,6 +320,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'rice-11',
     dishCode: '11',
+    imageUrl: '/images/dishes/11.jpg',
     name: 'King Prawn Fried Rice',
     chineseName: '大虾炒饭',
     category: 'Rice Dishes',
@@ -313,6 +331,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'rice-12',
     dishCode: '12',
+    imageUrl: '/images/dishes/12.jpg',
     name: 'Chicken Fried Rice',
     chineseName: '鸡炒饭',
     category: 'Rice Dishes',
@@ -341,6 +360,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'rice-16',
     dishCode: '16',
+    imageUrl: '/images/dishes/16.jpg',
     name: 'Roast Duck & Barbecued Pork with Rice',
     chineseName: '鸭叉饭',
     category: 'Rice Dishes',
@@ -350,6 +370,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'rice-17',
     dishCode: '17',
+    imageUrl: '/images/dishes/17.jpg',
     name: 'Egg Fried Rice',
     chineseName: '蛋炒饭',
     category: 'Rice Dishes',
@@ -375,6 +396,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chowmein-22',
     dishCode: '22',
+    imageUrl: '/images/dishes/22.jpg',
     name: 'House Special Chow Mein',
     chineseName: '招牌炒面',
     category: 'Chow Mein & Noodles',
@@ -384,6 +406,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chowmein-23',
     dishCode: '23',
+    imageUrl: '/images/dishes/23.jpg',
     name: 'King Prawn Chow Mein',
     chineseName: '大虾炒面',
     category: 'Chow Mein & Noodles',
@@ -394,6 +417,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chowmein-25',
     dishCode: '25',
+    imageUrl: '/images/dishes/25.jpg',
     name: 'Special Chow Mein',
     chineseName: '特别炒面',
     category: 'Chow Mein & Noodles',
@@ -404,6 +428,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chowmein-27',
     dishCode: '27',
+    imageUrl: '/images/dishes/27.jpg',
     name: 'Beef Chow Mein',
     chineseName: '牛炒面',
     category: 'Chow Mein & Noodles',
@@ -425,6 +450,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chowmein-g31',
     dishCode: 'G31',
+    imageUrl: '/images/dishes/G31.jpg',
     name: 'Singapore Vermicelli Noodles',
     chineseName: '星洲米粉',
     description: 'Fine rice noodles with pork, shrimp, peppers and spicy curry flavour.',
@@ -437,6 +463,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chowmein-33',
     dishCode: '33',
+    imageUrl: '/images/dishes/33.jpg',
     name: 'Chicken Chow Mein',
     chineseName: '鸡炒面',
     category: 'Chow Mein & Noodles',
@@ -447,6 +474,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chowmein-34',
     dishCode: '34',
+    imageUrl: '/images/dishes/34.jpg',
     name: 'Plain Chow Mein',
     chineseName: '净炒面',
     category: 'Chow Mein & Noodles',
@@ -460,6 +488,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'ss-36',
     dishCode: '36',
+    imageUrl: '/images/dishes/36.jpg',
     name: 'Sweet & Sour Pork Balls (12)',
     chineseName: '咕噜猪球',
     category: 'Sweet & Sour Dishes',
@@ -490,6 +519,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'ss-40',
     dishCode: '40',
+    imageUrl: '/images/dishes/40.jpg',
     name: 'Sweet & Sour Pork (Peking Style)',
     chineseName: '京都猪肉',
     category: 'Sweet & Sour Dishes',
@@ -500,6 +530,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'ss-42',
     dishCode: '42',
+    imageUrl: '/images/dishes/42.jpg',
     name: 'Sweet & Sour Chicken (Peking Style)',
     chineseName: '京都鸡',
     category: 'Sweet & Sour Dishes',
@@ -522,6 +553,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'curry-48',
     dishCode: '48',
+    imageUrl: '/images/dishes/48.jpg',
     name: 'Special Curry',
     chineseName: '特别咖喱',
     category: 'Curry Dishes',
@@ -532,6 +564,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'curry-49',
     dishCode: '49',
+    imageUrl: '/images/dishes/49.jpg',
     name: 'King Prawn Curry',
     chineseName: '咖喱大虾',
     category: 'Curry Dishes',
@@ -542,6 +575,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'curry-50',
     dishCode: '50',
+    imageUrl: '/images/dishes/50.jpg',
     name: 'Chicken Curry',
     chineseName: '咖喱鸡',
     category: 'Curry Dishes',
@@ -552,6 +586,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'curry-52',
     dishCode: '52',
+    imageUrl: '/images/dishes/52.jpg',
     name: 'Beef Curry',
     chineseName: '咖喱牛',
     category: 'Curry Dishes',
@@ -588,6 +623,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'duck-84',
     dishCode: '84',
+    imageUrl: '/images/dishes/84.jpg',
     name: 'Duck with Mushrooms',
     chineseName: '蘑菇鸭',
     category: 'Duck Dishes',
@@ -598,6 +634,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'duck-g85',
     dishCode: 'G85',
+    imageUrl: '/images/dishes/G85.jpg',
     name: 'Duck with Mushrooms in Black Bean Sauce',
     chineseName: '豉汁蘑菇鸭',
     category: 'Duck Dishes',
@@ -624,6 +661,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'beef-93',
     dishCode: '93',
+    imageUrl: '/images/dishes/93.jpg',
     name: 'Beef with Mushrooms in Black Bean Sauce',
     chineseName: '豉汁蘑菇牛',
     category: 'Beef Dishes',
@@ -635,6 +673,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'beef-98',
     dishCode: '98',
+    imageUrl: '/images/dishes/98.jpg',
     name: 'Beef with Ginger & Spring Onions',
     chineseName: '姜葱牛',
     category: 'Beef Dishes',
@@ -645,6 +684,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'beef-100',
     dishCode: '100',
+    imageUrl: '/images/dishes/100.jpg',
     name: 'Beef in Satay Sauce',
     chineseName: '沙爹牛',
     category: 'Beef Dishes',
@@ -659,6 +699,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chicken-108',
     dishCode: '108',
+    imageUrl: '/images/dishes/108.jpg',
     name: 'Chicken with Mushrooms in Black Bean Sauce',
     chineseName: '豉汁蘑菇鸡',
     category: 'Chicken Dishes',
@@ -670,6 +711,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chicken-114',
     dishCode: '114',
+    imageUrl: '/images/dishes/114.jpg',
     name: 'Lemon Chicken',
     chineseName: '柠檬鸡',
     description: 'Crispy chicken breast with rich sweet tangy lemon sauce.',
@@ -681,6 +723,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chicken-115',
     dishCode: '115',
+    imageUrl: '/images/dishes/115.jpg',
     name: 'Chicken with Ginger & Spring Onions',
     chineseName: '姜葱鸡',
     category: 'Chicken Dishes',
@@ -691,6 +734,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chicken-123',
     dishCode: '123',
+    imageUrl: '/images/dishes/123.jpg',
     name: 'Chicken in Satay Sauce',
     chineseName: '沙爹鸡',
     category: 'Chicken Dishes',
@@ -705,6 +749,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'side-148',
     dishCode: '148',
+    imageUrl: '/images/dishes/148.jpg',
     name: 'Pancake Roll',
     chineseName: '春卷',
     category: 'Sides & Sauces',
@@ -714,6 +759,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'side-g148',
     dishCode: 'G148',
+    imageUrl: '/images/dishes/G148.jpg',
     name: 'Mini Vegetable Rolls (10)',
     chineseName: '小菜卷',
     category: 'Sides & Sauces',
@@ -724,6 +770,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'side-149',
     dishCode: '149',
+    imageUrl: '/images/dishes/149.jpg',
     name: 'Prawn Crackers',
     chineseName: '虾片',
     category: 'Sides & Sauces',
@@ -733,6 +780,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'side-150',
     dishCode: '150',
+    imageUrl: '/images/dishes/150.jpg',
     name: 'Chips',
     chineseName: '薯条',
     category: 'Sides & Sauces',
@@ -743,6 +791,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'side-152',
     dishCode: '152',
+    imageUrl: '/images/dishes/152.jpg',
     name: 'Chips in Curried Sauce',
     chineseName: '咖喱薯条',
     category: 'Sides & Sauces',
@@ -756,6 +805,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'set-z1',
     dishCode: 'Z1',
+    imageUrl: '/images/dishes/Z1.jpg',
     name: 'Value Meal Z1',
     chineseName: '套餐Z1',
     description: 'Fried Rice, Chicken in Black Bean Sauce, Pancake Roll (1).',
@@ -810,6 +860,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'set-b',
     dishCode: 'B',
+    imageUrl: '/images/dishes/B.jpg',
     name: 'Set Dinner B (For Two Persons)',
     chineseName: '二人套餐B',
     description: 'Mini Vegetables Rolls (8), Special Fried Rice, Sweet & Sour Pork (12), Chicken with Mixed Vegetables, Beef with Satay Sauce.',

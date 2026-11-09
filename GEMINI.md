@@ -80,20 +80,24 @@
 
 ---
 
-## 5. Current Build Status & Next Session Handoff
+## 5. Live Production Infrastructure & Current Build Status
 
-### Completed in Session 1:
+- **GCP Project:** `takeaway-platform-prod` (Project Number: `751524926590`, Region: `europe-west2` London)
+- **Billing Tier:** Blaze Plan
+- **Production URL:** `https://takeaway-751524926590.europe-west2.run.app`
+- **Kitchen Portal URL:** `https://takeaway-751524926590.europe-west2.run.app/kitchen`
+
+### Completed Milestones:
 1. **Architectural Deep Research:** Formulated master blueprint synthesized from the 40-page Gemini Argon Deep Research report (`docs/DEEP_RESEARCH_BLUEPRINT.md` & `implementation_plan.md`).
 2. **Menu Ingestion:** Fully transcribed August 2026 Golden Rice Bowl physical menu catalog (`src/data/goldenRiceBowlMenu.ts`) covering all 16 categories, authentic dish codes, dual sizing, 14 UK allergens, and bilingual Chinese names.
-3. **Customer Storefront (`/`):** Mobile-first Next.js 15 PWA with sticky category pills, instant dish-code search, bottom-sheet side swaps (Egg Fried Rice, Chips, Half & Half), allergen declaration gate, and guest checkout.
-4. **Kitchen Tablet Portal (`/kitchen`):** High-contrast tablet UI with looping Web Audio chime, 1-tap ETA acceptance (15m, 25m, 40m, 60m), 80mm ESC/POS thermal ticket previewer (bilingual kitchen pass docket + customer simplified VAT receipt), and 86 stock toggles.
-5. **AI Food Photography:** Operational Pollinations `flux` pipeline (`scripts/generate_food_images.ts`) with disk caching.
-6. **Verified Build:** Next.js production build verified clean (zero errors) and pushed to GitHub `origin/main`.
-7. **Cloud Billing:** Project Director created a dedicated Google Cloud Billing Account for the new Takeaway project (automatically unlocking Firebase Blaze plan).
+3. **AI Food Photography Batch:** Generated 55 high-definition dish photos across all 16 categories using Pollinations Flux model (`scripts/generate_food_images.ts`), cached in `public/images/dishes/`, and mapped cleanly into the menu data.
+4. **Customer Storefront (`/`):** Mobile-first Next.js 15 PWA with sticky category pills, instant dish-code search, bottom-sheet side swaps (Egg Fried Rice, Chips, Half & Half), allergen declaration gate, and guest checkout.
+5. **Kitchen Tablet Portal (`/kitchen`):** High-contrast tablet UI with looping Web Audio chime, 1-tap ETA acceptance (15m, 25m, 40m, 60m), 80mm ESC/POS thermal ticket previewer (bilingual kitchen pass docket + customer simplified VAT receipt), and 86 stock toggles.
+6. **Containerization & GCP Cloud Run Deployment:** Standalone Next.js multi-stage Docker build deployed to Google Cloud Run in `europe-west2` with automatic SSL, scale-to-zero cold start optimization, and Google Frontend CDN caching.
 
 ### Next Session Immediate Objectives (Resume Here):
-1. **GCP Project Linking & Deployment:** Receive the newly created GCP/Firebase Project ID from Alex, authenticate CLI, and deploy the application to GCP Cloud Run / Firebase App Hosting for public mobile/tablet access.
-2. **Active Order Bus:** Connect Firebase Cloud Firestore (`active_orders/{tenant_id}/orders/{order_id}`) for live websocket push between phones and tablets.
-3. **Full Menu Image Batch:** Run `scripts/generate_food_images.ts` across all remaining menu categories to populate every dish with high-definition photos.
-4. **Stripe Connect Sandbox:** Wire up Stripe Connect Direct Charge payment intents in test mode.
+1. **Active Order Bus:** Connect Firebase Cloud Firestore (`active_orders/{tenant_id}/orders/{order_id}`) for live websocket push between customer mobile devices and kitchen tablets.
+2. **Stripe Connect Sandbox:** Wire up Stripe Connect Direct Charge payment intents with Apple Pay / Google Pay support in test mode.
+3. **Custom Domain:** Map `orders.goldenricebowl.co.uk` to Cloud Run via Google Cloud DNS / Cloud Load Balancing.
+
 
