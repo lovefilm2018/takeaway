@@ -77,3 +77,23 @@
 - `/kitchen`: Tablet-optimized Kitchen & Staff Management Portal with looping chime alerts, 1-tap ETA acceptance (15m/25m/40m/60m), 80mm ESC/POS thermal ticket previewer, and instant "86" out-of-stock toggles.
 - `src/data/goldenRiceBowlMenu.ts`: Complete transcribed August 2026 takeaway menu catalog with authentic dish codes (`#1` to `#158`, `#Z1`–`#Z10`, Set Dinners `A`–`D3`), prices, and bilingual Chinese names.
 - `scripts/generate_food_images.ts`: Automated AI food photography generator.
+
+---
+
+## 5. Current Build Status & Next Session Handoff
+
+### Completed in Session 1:
+1. **Architectural Deep Research:** Formulated master blueprint synthesized from the 40-page Gemini Argon Deep Research report (`docs/DEEP_RESEARCH_BLUEPRINT.md` & `implementation_plan.md`).
+2. **Menu Ingestion:** Fully transcribed August 2026 Golden Rice Bowl physical menu catalog (`src/data/goldenRiceBowlMenu.ts`) covering all 16 categories, authentic dish codes, dual sizing, 14 UK allergens, and bilingual Chinese names.
+3. **Customer Storefront (`/`):** Mobile-first Next.js 15 PWA with sticky category pills, instant dish-code search, bottom-sheet side swaps (Egg Fried Rice, Chips, Half & Half), allergen declaration gate, and guest checkout.
+4. **Kitchen Tablet Portal (`/kitchen`):** High-contrast tablet UI with looping Web Audio chime, 1-tap ETA acceptance (15m, 25m, 40m, 60m), 80mm ESC/POS thermal ticket previewer (bilingual kitchen pass docket + customer simplified VAT receipt), and 86 stock toggles.
+5. **AI Food Photography:** Operational Pollinations `flux` pipeline (`scripts/generate_food_images.ts`) with disk caching.
+6. **Verified Build:** Next.js production build verified clean (zero errors) and pushed to GitHub `origin/main`.
+7. **Cloud Billing:** Project Director created a dedicated Google Cloud Billing Account for the new Takeaway project (automatically unlocking Firebase Blaze plan).
+
+### Next Session Immediate Objectives (Resume Here):
+1. **GCP Project Linking & Deployment:** Receive the newly created GCP/Firebase Project ID from Alex, authenticate CLI, and deploy the application to GCP Cloud Run / Firebase App Hosting for public mobile/tablet access.
+2. **Active Order Bus:** Connect Firebase Cloud Firestore (`active_orders/{tenant_id}/orders/{order_id}`) for live websocket push between phones and tablets.
+3. **Full Menu Image Batch:** Run `scripts/generate_food_images.ts` across all remaining menu categories to populate every dish with high-definition photos.
+4. **Stripe Connect Sandbox:** Wire up Stripe Connect Direct Charge payment intents in test mode.
+
