@@ -25,6 +25,34 @@ import {
   MENU_CATEGORIES 
 } from '../data/goldenRiceBowlMenu';
 import { MenuItem, OrderItem, Order } from '../types/domain';
+import { getSmartUpsellSuggestions } from '../utils/smartUpsellEngine';
+
+// Categories considered "Wet / Saucy Mains" that typically require rice or chips
+const SAUCY_MAIN_CATEGORIES = new Set([
+  'Curry Dishes',
+  'Sweet & Sour Dishes',
+  'Chop Suey Dishes',
+  'King Prawn Dishes',
+  'Duck Dishes',
+  'Beef Dishes',
+  'Chicken Dishes',
+  'Pork Dishes',
+]);
+
+interface SideOption {
+  dishCode: string;
+  name: string;
+  pricePence: number;
+  badge?: string;
+}
+
+const AVAILABLE_SIDES: SideOption[] = [
+  { dishCode: '17', name: 'Egg Fried Rice (#17)', pricePence: 360, badge: 'Popular' },
+  { dishCode: '18', name: 'Plain Boiled Rice (#18)', pricePence: 330 },
+  { dishCode: '150', name: 'Chips (#150)', pricePence: 300 },
+  { dishCode: 'T3', name: 'Salt & Pepper Chips (#T3)', pricePence: 480, badge: 'Spicy' },
+  { dishCode: '34', name: 'Plain Chow Mein (#34)', pricePence: 450 },
+];
 
 export default function StorefrontPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>(MENU_CATEGORIES[0]);
@@ -36,12 +64,17 @@ export default function StorefrontPage() {
 
   // Modal customization state
   const [selectedSize, setSelectedSize] = useState<'REGULAR' | 'LARGE'>('REGULAR');
-  const [selectedSideSwap, setSelectedSideSwap] = useState<{ name: string; pricePence: number }>({
-    name: 'No Side Included',
-    pricePence: 0,
-  });
+  const [selectedSide, setSelectedSide] = useState<SideOption | null>(null);
   const [spicePreference, setSpicePreference] = useState<'Standard' | 'Mild' | 'Extra Hot' | 'No Chilli'>('Standard');
   const [cookingNotes, setCookingNotes] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((current) => (current === msg ? null : current));
+    }, 2800);
+  };
 
   // Checkout form state
   const [customerName, setCustomerName] = useState('');
@@ -97,35 +130,97 @@ export default function StorefrontPage() {
   const deliveryFeePence = fulfillmentType === 'DELIVERY' ? 150 : 0;
   const cartTotalPence = cartSubtotalPence + deliveryFeePence;
 
-  const handleOpenCustomize = (item: MenuItem) => {
-    setActiveModalItem(item);
-    setSelectedSize('REGULAR');
-    setSelectedSideSwap({ name: 'No Side Included', pricePence: 0 });
-    setSpicePreference('Standard');
-    setCookingNotes('');
+  // Smart upsell suggestions evaluated against cart in <1ms
+  const upsellSuggestions = useMemo(() => {
+    return getSmartUpsellSuggestions(
+      cart,
+      allergyDetails ? [allergyDetails] : [],
+      hasAllergies
+    );
+  }, [cart, allergyDetails, hasAllergies]);
+
+  // Fast direct 1-tap add for items that do not require side selection or portion sizing
+  const handleDirectAddToCart = (item: MenuItem) => {
+    const newItem: OrderItem = {
+      id: `${item.id}-${Date.now()}`,
+      menuItemId: item.id,
+      dishCode: item.dishCode,
+      name: item.name,
+      chineseName: item.chineseName,
+      quantity: 1,
+      unitPricePence: item.basePricePence,
+      modifiers: [],
+      lineTotalPence: item.basePricePence,
+      allergens: item.allergens,
+    };
+
+    setCart((prev) => {
+      // If exact dish is already in cart, bump quantity
+      const existingIdx = prev.findIndex(
+        (ci) => ci.dishCode === item.dishCode && (!ci.modifiers || ci.modifiers.length === 0) && !ci.specialInstructions && !ci.size
+      );
+      if (existingIdx > -1) {
+        const copy = [...prev];
+        const target = copy[existingIdx];
+        copy[existingIdx] = {
+          ...target,
+          quantity: target.quantity + 1,
+          lineTotalPence: target.unitPricePence * (target.quantity + 1),
+        };
+        return copy;
+      }
+      return [...prev, newItem];
+    });
+
+    showToast(`Added #${item.dishCode} ${item.name} to order`);
+  };
+
+  // Determine whether item needs modal or 1-tap add
+  const handleItemClick = (item: MenuItem) => {
+    const isSaucyMain = SAUCY_MAIN_CATEGORIES.has(item.category) && item.dishCode !== '91';
+    const hasMultipleSizes = Boolean(item.largePricePence);
+    const isAromaticDuck = item.dishCode === '91';
+
+    if (isSaucyMain || hasMultipleSizes || isAromaticDuck) {
+      setActiveModalItem(item);
+      setSelectedSize('REGULAR');
+      setSelectedSide(null);
+      setSpicePreference(
+        item.spicyLevel && item.spicyLevel > 0
+          ? item.spicyLevel === 1
+            ? 'Mild'
+            : item.spicyLevel === 2
+            ? 'Standard'
+            : 'Extra Hot'
+          : 'Standard'
+      );
+      setCookingNotes('');
+    } else {
+      // Direct 1-tap add!
+      handleDirectAddToCart(item);
+    }
   };
 
   const handleAddToCart = () => {
     if (!activeModalItem) return;
 
-    const basePrice = selectedSize === 'LARGE' && activeModalItem.largePricePence 
-      ? activeModalItem.largePricePence 
-      : activeModalItem.basePricePence;
+    const basePrice =
+      selectedSize === 'LARGE' && activeModalItem.largePricePence
+        ? activeModalItem.largePricePence
+        : activeModalItem.basePricePence;
 
     const modifiers = [];
-    if (selectedSideSwap.pricePence > 0) {
+    if (activeModalItem.spicyLevel && activeModalItem.spicyLevel > 0 && spicePreference !== 'Standard') {
       modifiers.push({
-        groupId: 'side-swap',
-        groupName: 'Side Choice',
-        optionId: selectedSideSwap.name.toLowerCase().replace(/\s+/g, '-'),
-        optionName: selectedSideSwap.name,
-        priceDeltaPence: selectedSideSwap.pricePence,
+        groupId: 'spice',
+        groupName: 'Spice Level',
+        optionId: spicePreference.toLowerCase().replace(/\s+/g, '-'),
+        optionName: spicePreference,
+        priceDeltaPence: 0,
       });
     }
 
-    const unitPricePence = basePrice + selectedSideSwap.pricePence;
-
-    const newItem: OrderItem = {
+    const mainItem: OrderItem = {
       id: `${activeModalItem.id}-${Date.now()}`,
       menuItemId: activeModalItem.id,
       dishCode: activeModalItem.dishCode,
@@ -133,15 +228,38 @@ export default function StorefrontPage() {
       chineseName: activeModalItem.chineseName,
       quantity: 1,
       size: activeModalItem.largePricePence ? selectedSize : undefined,
-      unitPricePence,
+      unitPricePence: basePrice,
       modifiers,
-      lineTotalPence: unitPricePence,
+      lineTotalPence: basePrice,
       allergens: activeModalItem.allergens,
       specialInstructions: cookingNotes.trim() ? cookingNotes.trim() : undefined,
     };
 
-    setCart((prev) => [...prev, newItem]);
+    const newItems: OrderItem[] = [mainItem];
+    let toastSummary = `Added #${activeModalItem.dishCode} ${activeModalItem.name}`;
+
+    // If customer selected an optional side, add as a separate independent line item
+    if (selectedSide) {
+      const sideDish = GOLDEN_RICE_BOWL_MENU.find((d) => d.dishCode === selectedSide.dishCode);
+      const sideItem: OrderItem = {
+        id: `side-${selectedSide.dishCode}-${Date.now()}`,
+        menuItemId: sideDish?.id || `side-${selectedSide.dishCode}`,
+        dishCode: selectedSide.dishCode,
+        name: sideDish?.name || selectedSide.name,
+        chineseName: sideDish?.chineseName,
+        quantity: 1,
+        unitPricePence: selectedSide.pricePence,
+        modifiers: [],
+        lineTotalPence: selectedSide.pricePence,
+        allergens: sideDish?.allergens || [],
+      };
+      newItems.push(sideItem);
+      toastSummary = `Added ${activeModalItem.name} + ${sideItem.name}`;
+    }
+
+    setCart((prev) => [...prev, ...newItems]);
     setActiveModalItem(null);
+    showToast(toastSummary);
   };
 
   const updateItemQty = (index: number, delta: number) => {
@@ -226,6 +344,14 @@ export default function StorefrontPage() {
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] text-stone-900 pb-28">
+      {/* ================= FLOATING TOAST FEEDBACK ================= */}
+      {toastMessage && (
+        <div className="fixed top-16 inset-x-4 max-w-sm mx-auto z-50 bg-stone-900/95 text-white backdrop-blur px-4 py-2.5 rounded-xl shadow-xl border border-gold-500/30 flex items-center gap-2.5 text-xs font-semibold animate-fade-in">
+          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="truncate">{toastMessage}</span>
+        </div>
+      )}
+
       {/* ================= HEADER BRANDING ================= */}
       <header className="bg-gradient-to-r from-imperial-900 via-imperial-800 to-imperial-900 text-white shadow-md sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 py-3 sm:py-4">
@@ -487,7 +613,7 @@ export default function StorefrontPage() {
                       </div>
 
                       <button
-                        onClick={() => handleOpenCustomize(item)}
+                        onClick={() => handleItemClick(item)}
                         className="px-3.5 py-1.5 rounded-xl bg-imperial-800 hover:bg-imperial-900 active:scale-95 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition-all"
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -566,64 +692,123 @@ export default function StorefrontPage() {
                 </div>
               )}
 
-              {/* Rice / Side Swap Upgrade */}
-              <div>
-                <label className="font-bold text-stone-900 block mb-1">
-                  Optional Rice or Chips Side Swap
-                </label>
-                <p className="text-stone-500 text-xs mb-2">
-                  Upgrade your meal with freshly prepared takeaway sides:
-                </p>
-                <div className="space-y-1.5">
-                  {[
-                    { name: 'No Side Included', pricePence: 0 },
-                    { name: 'Upgrade to Boiled Rice', pricePence: 200 },
-                    { name: 'Upgrade to Egg Fried Rice', pricePence: 280 },
-                    { name: 'Upgrade to Chips', pricePence: 250 },
-                    { name: 'Upgrade to Half Rice & Half Chips', pricePence: 300 },
-                    { name: 'Upgrade to Soft Chow Mein', pricePence: 320 },
-                  ].map((side) => (
+              {/* Aromatic Duck (#91) Portion Selection */}
+              {activeModalItem.dishCode === '91' && (
+                <div>
+                  <label className="font-bold text-stone-900 block mb-2">
+                    Select Duck Portion
+                  </label>
+                  <p className="text-stone-500 text-xs mb-2">
+                    Served with warm steamed pancakes, cucumber, spring onions & hoi sin sauce.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: 'Quarter Duck', pricePence: 1180 },
+                      { label: 'Half Duck', pricePence: 2180 },
+                      { label: 'Whole Duck', pricePence: 3900 },
+                    ].map((duckPortion) => (
+                      <button
+                        key={duckPortion.label}
+                        type="button"
+                        onClick={() => setSelectedSize(duckPortion.label === 'Quarter Duck' ? 'REGULAR' : 'LARGE')}
+                        className={`p-2.5 rounded-xl border text-center flex flex-col items-center justify-between transition-all ${
+                          (selectedSize === 'REGULAR' && duckPortion.label === 'Quarter Duck') ||
+                          (selectedSize === 'LARGE' && duckPortion.label !== 'Quarter Duck')
+                            ? 'border-imperial-800 bg-imperial-50 text-imperial-950 font-bold ring-1 ring-imperial-800/30'
+                            : 'border-stone-200 hover:border-stone-300'
+                        }`}
+                      >
+                        <span className="text-xs">{duckPortion.label}</span>
+                        <span className="font-bold text-stone-900 text-xs mt-1">
+                          £{(duckPortion.pricePence / 100).toFixed(2)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Optional Side Selection (Only for Wet / Saucy Main Dishes) */}
+              {SAUCY_MAIN_CATEGORIES.has(activeModalItem.category) && activeModalItem.dishCode !== '91' && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-stone-900 block text-xs sm:text-sm">
+                      Add a freshly cooked side?
+                    </label>
+                    <span className="text-[10px] text-stone-400 font-semibold">Optional</span>
+                  </div>
+                  <p className="text-stone-500 text-xs mb-2.5">
+                    Traditional British Chinese takeaway mains do not include rice or chips.
+                  </p>
+                  <div className="space-y-1.5">
                     <button
-                      key={side.name}
                       type="button"
-                      onClick={() => setSelectedSideSwap(side)}
-                      className={`w-full p-2.5 rounded-xl border text-xs text-left flex items-center justify-between ${
-                        selectedSideSwap.name === side.name
-                          ? 'border-imperial-800 bg-imperial-50 text-imperial-950 font-bold'
+                      onClick={() => setSelectedSide(null)}
+                      className={`w-full p-2.5 rounded-xl border text-xs text-left flex items-center justify-between transition-all ${
+                        selectedSide === null
+                          ? 'border-imperial-800 bg-imperial-50 text-imperial-950 font-bold ring-1 ring-imperial-800/30'
                           : 'border-stone-200 hover:border-stone-300'
                       }`}
                     >
-                      <span>{side.name}</span>
-                      <span>
-                        {side.pricePence === 0 ? 'Included' : `+£${(side.pricePence / 100).toFixed(2)}`}
-                      </span>
+                      <span>No Side (Main Dish Only)</span>
+                      <span className="text-stone-500">£0.00</span>
                     </button>
-                  ))}
+                    {AVAILABLE_SIDES.map((side) => (
+                      <button
+                        key={side.dishCode}
+                        type="button"
+                        onClick={() => setSelectedSide(side)}
+                        className={`w-full p-2.5 rounded-xl border text-xs text-left flex items-center justify-between transition-all ${
+                          selectedSide?.dishCode === side.dishCode
+                            ? 'border-imperial-800 bg-imperial-50 text-imperial-950 font-bold ring-1 ring-imperial-800/30'
+                            : 'border-stone-200 hover:border-stone-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>{side.name}</span>
+                          {side.badge && (
+                            <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                              {side.badge}
+                            </span>
+                          )}
+                        </div>
+                        <span>+£{(side.pricePence / 100).toFixed(2)}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Spice Adjustment */}
-              <div>
-                <label className="font-bold text-stone-900 block mb-1.5">
-                  Spice Level Preference
-                </label>
-                <div className="grid grid-cols-4 gap-1.5 text-xs text-center">
-                  {(['Standard', 'Mild', 'Extra Hot', 'No Chilli'] as const).map((lvl) => (
-                    <button
-                      key={lvl}
-                      type="button"
-                      onClick={() => setSpicePreference(lvl)}
-                      className={`p-2 rounded-lg border font-semibold ${
-                        spicePreference === lvl
-                          ? 'border-imperial-800 bg-imperial-800 text-white'
-                          : 'border-stone-200 hover:border-stone-300 text-stone-700'
-                      }`}
-                    >
-                      {lvl}
-                    </button>
-                  ))}
+              {/* Spice Adjustment (Only shown for dishes with spicyLevel > 0) */}
+              {activeModalItem.spicyLevel && activeModalItem.spicyLevel > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-stone-900 block text-xs sm:text-sm">
+                      Spice Level Preference
+                    </label>
+                    <span className="text-[10px] text-red-600 font-semibold flex items-center gap-0.5">
+                      <Flame className="w-3 h-3 fill-red-500" />
+                      Spicy Dish
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5 text-xs text-center">
+                    {(['Mild', 'Standard', 'Extra Hot', 'No Chilli'] as const).map((lvl) => (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => setSpicePreference(lvl)}
+                        className={`p-2 rounded-lg border font-semibold transition-all ${
+                          spicePreference === lvl
+                            ? 'border-imperial-800 bg-imperial-800 text-white'
+                            : 'border-stone-200 hover:border-stone-300 text-stone-700'
+                        }`}
+                      >
+                        {lvl}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Cooking preference note */}
               <div>
@@ -635,7 +820,7 @@ export default function StorefrontPage() {
                   maxLength={60}
                   value={cookingNotes}
                   onChange={(e) => setCookingNotes(e.target.value)}
-                  placeholder="e.g. No spring onions, crispy well-done (No allergies here)"
+                  placeholder="e.g. No spring onions, extra crispy (No allergies here)"
                   className="w-full p-2.5 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-imperial-700/20 text-xs"
                 />
                 <span className="text-[10px] text-stone-400 mt-1 block">
@@ -647,24 +832,29 @@ export default function StorefrontPage() {
             {/* Modal Footer */}
             <div className="p-4 border-t border-stone-100 flex items-center justify-between bg-stone-50 rounded-b-2xl">
               <div>
-                <span className="text-xs text-stone-500 block">Item Total</span>
+                <span className="text-xs text-stone-500 block">Total</span>
                 <span className="font-black text-stone-900 text-base">
                   £{(
                     ((selectedSize === 'LARGE' && activeModalItem.largePricePence
                       ? activeModalItem.largePricePence
                       : activeModalItem.basePricePence) +
-                      selectedSideSwap.pricePence) /
+                      (selectedSide ? selectedSide.pricePence : 0)) /
                     100
                   ).toFixed(2)}
                 </span>
+                {selectedSide && (
+                  <span className="text-[10px] text-stone-500 block">
+                    + 1x {selectedSide.name}
+                  </span>
+                )}
               </div>
 
               <button
                 type="button"
                 onClick={handleAddToCart}
-                className="px-6 py-2.5 rounded-xl bg-imperial-800 hover:bg-imperial-900 text-white font-bold text-xs sm:text-sm shadow-md"
+                className="px-6 py-2.5 rounded-xl bg-imperial-800 hover:bg-imperial-900 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md transition-all"
               >
-                Add to Order
+                {selectedSide ? 'Add 2 Items to Order' : 'Add to Order'}
               </button>
             </div>
           </div>
@@ -776,6 +966,51 @@ export default function StorefrontPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Smart "Did You Forget?" Recommendations */}
+              {upsellSuggestions.length > 0 && (
+                <div className="p-3 sm:p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <h4 className="font-bold text-stone-900 text-xs uppercase tracking-wider">
+                      Did you forget?
+                    </h4>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {upsellSuggestions.map((s) => (
+                      <div
+                        key={s.dish.id}
+                        className="p-2.5 rounded-xl bg-white border border-stone-200/90 shadow-sm flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[9px] font-bold text-imperial-800 bg-imperial-50 px-1.5 py-0.5 rounded border border-imperial-200">
+                              {s.badgeText}
+                            </span>
+                            <span className="font-black text-stone-900 text-xs">
+                              £{(s.dish.basePricePence / 100).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="font-bold text-stone-900 text-xs leading-snug">
+                            #{s.dish.dishCode} {s.dish.name}
+                          </div>
+                          <p className="text-[10px] text-stone-500 mt-0.5 line-clamp-1">
+                            {s.reason}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDirectAddToCart(s.dish)}
+                          className="mt-2.5 w-full py-1.5 rounded-lg bg-imperial-800 hover:bg-imperial-900 active:scale-95 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-sm transition-all"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Add for £{(s.dish.basePricePence / 100).toFixed(2)}</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Checkout Customer Fields */}
               <div className="pt-4 border-t border-stone-200 space-y-3">
