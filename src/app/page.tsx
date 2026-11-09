@@ -280,7 +280,7 @@ export default function StorefrontPage() {
     });
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     if (!customerName || !customerPhone) {
       alert('Please provide your name and UK mobile number.');
       return;
@@ -330,7 +330,18 @@ export default function StorefrontPage() {
       createdAt: new Date().toISOString(),
     };
 
-    // Save to shared localStorage so Kitchen view receives it in real-time
+    // Save to Cloud Firestore order bus
+    try {
+      await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newOrder),
+      });
+    } catch (err) {
+      console.error('Failed to broadcast order to cloud:', err);
+    }
+
+    // Also save to shared localStorage as backup
     const existingOrders = JSON.parse(localStorage.getItem('grb_orders_bus') || '[]');
     localStorage.setItem('grb_orders_bus', JSON.stringify([newOrder, ...existingOrders]));
 

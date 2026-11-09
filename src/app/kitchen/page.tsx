@@ -34,92 +34,26 @@ export default function KitchenPortalPage() {
   const [soldOutDishCodes, setSoldOutDishCodes] = useState<string[]>([]);
   const [selectedTicketForPrint, setSelectedTicketForPrint] = useState<Order | null>(null);
 
-  // Load orders from shared localStorage bus
-  const loadOrders = () => {
+  // Load orders from live Cloud Firestore API + localStorage cache fallback
+  const loadOrders = async () => {
     try {
-      const data = localStorage.getItem('grb_orders_bus');
-      if (data) {
-        setOrders(JSON.parse(data));
-      } else {
-        // Seed 1 initial test order so staff sees the UI immediately
-        const initialOrder: Order = {
-          id: 'ord_demo_101',
-          tenantId: GOLDEN_RICE_BOWL_RESTAURANT.id,
-          displayNumber: '#101',
-          status: 'RECEIVED',
-          fulfillmentType: 'DELIVERY',
-          customer: {
-            name: 'Sarah Jenkins',
-            phone: '07700 900456',
-            email: 'sarah@example.com',
-            deliveryAddress: {
-              line1: '12 Hailsham Road',
-              town: 'Heathfield',
-              postcode: 'TN21 8AA',
-              driverNotes: 'Side garden gate, ring loud bell',
-            },
-          },
-          allergyDeclaration: {
-            hasAllergies: true,
-            allergens: ['PEANUTS'],
-            notes: 'Severe peanut allergy - strictly no cross contamination!',
-          },
-          items: [
-            {
-              id: 'item_1',
-              menuItemId: 'beef-106',
-              dishCode: '106',
-              name: 'Crispy Shredded Chilli Beef',
-              chineseName: '干牛丝',
-              quantity: 2,
-              size: 'REGULAR',
-              unitPricePence: 810,
-              modifiers: [
-                {
-                  groupId: 'side-swap',
-                  groupName: 'Side Choice',
-                  optionId: 'upgrade-to-egg-fried-rice',
-                  optionName: 'Upgrade to Egg Fried Rice',
-                  priceDeltaPence: 80,
-                },
-              ],
-              lineTotalPence: 1780,
-              allergens: ['GLUTEN'],
-            },
-            {
-              id: 'item_2',
-              menuItemId: 'ss-37',
-              dishCode: '37',
-              name: 'Sweet & Sour Chicken Balls',
-              chineseName: '咕噜鸡球',
-              quantity: 1,
-              size: 'LARGE',
-              unitPricePence: 720,
-              modifiers: [],
-              lineTotalPence: 720,
-              allergens: ['GLUTEN'],
-            },
-            {
-              id: 'item_3',
-              menuItemId: 'side-149',
-              dishCode: '149',
-              name: 'Prawn Crackers',
-              chineseName: '虾片',
-              quantity: 1,
-              unitPricePence: 260,
-              modifiers: [],
-              lineTotalPence: 260,
-              allergens: ['CRUSTACEANS'],
-            },
-          ],
-          subtotalPence: 2760,
-          deliveryFeePence: 150,
-          tipPence: 200,
-          totalPence: 3110,
-          createdAt: new Date().toISOString(),
-        };
-        setOrders([initialOrder]);
-        localStorage.setItem('grb_orders_bus', JSON.stringify([initialOrder]));
+      const res = await fetch('/api/orders', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.orders && Array.isArray(data.orders) && data.orders.length > 0) {
+          setOrders(data.orders);
+          localStorage.setItem('grb_orders_bus', JSON.stringify(data.orders));
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Network issue fetching cloud orders, using local cache:', err);
+    }
+
+    try {
+      const localData = localStorage.getItem('grb_orders_bus');
+      if (localData) {
+        setOrders(JSON.parse(localData));
       }
     } catch {}
   };
@@ -170,21 +104,40 @@ export default function KitchenPortalPage() {
     }
   }, [pendingOrders.length, soundEnabled]);
 
-  // Order state transitions
-  const updateOrderStatus = (orderId: string, newStatus: OrderStatus, etaMinutes?: number) => {
+  // Order state transitions with live Cloud Firestore sync
+  const updateOrderStatus = async (orderId: string, newStatus: OrderStatus, etaMinutes?: number) => {
+    const estimatedReadyAt = etaMinutes 
+      ? new Date(Date.now() + etaMinutes * 60000).toISOString()
+      : undefined;
+
     setOrders((prev) => {
       const updated = prev.map((ord) => {
         if (ord.id === orderId) {
-          const estimatedReadyAt = etaMinutes 
-            ? new Date(Date.now() + etaMinutes * 60000).toISOString()
-            : ord.estimatedReadyAt;
-          return { ...ord, status: newStatus, estimatedReadyAt };
+          return { 
+            ...ord, 
+            status: newStatus, 
+            estimatedReadyAt: estimatedReadyAt || ord.estimatedReadyAt 
+          };
         }
         return ord;
       });
       localStorage.setItem('grb_orders_bus', JSON.stringify(updated));
       return updated;
     });
+
+    // Push update to Cloud Firestore
+    try {
+      await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: newStatus,
+          ...(estimatedReadyAt ? { estimatedReadyAt } : {}),
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to sync order update to cloud:', err);
+    }
   };
 
   // 86 Out of stock toggles

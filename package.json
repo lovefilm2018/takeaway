@@ -10,6 +10,7 @@
     "seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
+    "@google-cloud/firestore": "^8.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
     "next": "^15.1.7",
