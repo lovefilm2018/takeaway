@@ -38,3 +38,5 @@ env/
 .idea/
 *.swp
 *.swo
+
+CLI_*.bat
