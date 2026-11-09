@@ -53,24 +53,27 @@
 
 ---
 
-## 3. Technology Stack & Architectural Considerations (Subject to Research Phase)
+## 3. Technology Stack & Architectural Baseline (Post-Research Blueprint)
 
-- **Frontend Framework Candidates:** Next.js (App Router), React + Vite (PWA), or Vue / Nuxt.
-- **Backend / Real-Time Layer Candidates:**
-  - Firebase (Firestore Realtime listeners, Firebase Auth, Cloud Functions)
-  - Supabase (PostgreSQL with real-time subscriptions, Row-Level Security, Edge Functions)
-  - Node.js / Fastify / Express with WebSockets
-- **Payment Infrastructure:** Stripe Connect (or standard Stripe Checkout / Elements) to cleanly handle platform fees and direct payout splits.
-- **Printing Engine:** Web Print API / ESC/POS over Bluetooth / Cloud Print microservice for receipt printers (e.g. Epson TM-T20 / Sunmi Android POS terminals).
+- **Frontend & App Engine:** Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, Lucide icons.
+- **Data & Real-Time Sync:**
+  - Relational System of Record: PostgreSQL (Cloud SQL / Supabase) with Row-Level Security (`tenant_id`).
+  - Active Orders Bus: Firebase Cloud Firestore (`active_orders/{tenant_id}/orders/{order_id}`) for 25–50ms push updates and IndexedDB offline persistence.
+- **Hardware & Printing Architecture:**
+  - Kitchen Pass: Sunmi NT311 / Star TSP143IV 80mm IP52 greaseproof cloud printer connected via Ethernet/MQTT. Native GB18030 Chinese font support for bilingual wok tickets.
+  - Front Counter: Dedicated tablet or Sunmi V2s Plus wrapped in Capacitor.js with screen wake lock and persistent 105dB looping audio chimes.
+- **Payment Infrastructure:** Stripe Connect Direct Charges on connected accounts (`application_fee_amount: 5%`, takeaway as legal Merchant of Record).
+- **Compliance Engines:**
+  - UK Distance Selling Regulations 2014 & Natasha's Law: 14 mandatory EU/UK allergen disclosures and checkout declaration gate.
+  - HMRC VAT Notice 709/1 & 701/14: 20% standard rate hot food vs 0% zero rate qualifying cold items.
+  - PECR Regulation 22(3): Soft opt-in marketing opt-out checkbox at checkout.
+- **AI Culinary Photography:** Pollinations.ai `flux` model pipeline (`scripts/generate_food_images.ts`) with disk-level caching in `public/images/dishes/`.
 
 ---
 
-## 4. Immediate Next Steps & Research Phase
+## 4. Implemented Routes & Application Structure
 
-1. **Deep Research Formulation:** Formulate a comprehensive research brief for Gemini Deep Research covering:
-   - Modern architecture patterns for independent multi-tenant / white-label restaurant ordering apps.
-   - Hardware receipt printing integrations in modern web apps and PWAs.
-   - Low-latency real-time synchronization between customer ordering and kitchen tablets.
-   - Stripe fee splitting models (Stripe Connect Direct vs Destination charges for 5% platform margin).
-   - Regulatory requirements for food allergen disclosures (Natasha's Law in the UK) and VAT compliance.
-2. **Technical Scaffolding:** Establish repository foundation, schemas, and UI design mockups.
+- `/`: Customer-facing mobile-first ordering storefront (The Golden Rice Bowl) with category pill bar, instant dish code search, bottom-sheet modifier customization, and guest checkout.
+- `/kitchen`: Tablet-optimized Kitchen & Staff Management Portal with looping chime alerts, 1-tap ETA acceptance (15m/25m/40m/60m), 80mm ESC/POS thermal ticket previewer, and instant "86" out-of-stock toggles.
+- `src/data/goldenRiceBowlMenu.ts`: Complete transcribed August 2026 takeaway menu catalog with authentic dish codes (`#1` to `#158`, `#Z1`–`#Z10`, Set Dinners `A`–`D3`), prices, and bilingual Chinese names.
+- `scripts/generate_food_images.ts`: Automated AI food photography generator.
