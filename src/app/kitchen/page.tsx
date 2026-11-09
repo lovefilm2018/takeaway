@@ -319,6 +319,16 @@ export default function KitchenPortalPage() {
             <Ban className="w-3.5 h-3.5 text-red-400" />
             <span>86 Stock ({soldOutDishCodes.length})</span>
           </button>
+
+          {/* Admin Settings Link */}
+          <Link
+            href="/admin"
+            target="_blank"
+            className="px-3 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-700 text-stone-300 text-xs font-bold flex items-center gap-1"
+            title="Open Restaurant Admin Portal"
+          >
+            <span>Admin</span>
+          </Link>
         </div>
       </header>
 

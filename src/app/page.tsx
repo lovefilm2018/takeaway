@@ -30,6 +30,7 @@ import {
 } from '../data/goldenRiceBowlMenu';
 import { MenuItem, OrderItem, Order, OrderStatus } from '../types/domain';
 import { getSmartUpsellSuggestions } from '../utils/smartUpsellEngine';
+import { StoreStatusResult } from '../utils/scheduleHelper';
 
 // Categories considered "Wet / Saucy Mains" that typically require rice or chips
 const SAUCY_MAIN_CATEGORIES = new Set([
@@ -140,6 +141,41 @@ export default function StorefrontPage() {
     }
   }, [currentTime, orderSuccess?.status, orderSuccess?.surgeExpiresAt]);
 
+  // Dynamic restaurant settings & menu overrides from Admin
+  const [storeStatus, setStoreStatus] = useState<StoreStatusResult | null>(null);
+  const [menuOverrides, setMenuOverrides] = useState<Record<string, Partial<MenuItem>>>({});
+  const [customDishes, setCustomDishes] = useState<MenuItem[]>([]);
+  const [emergencyNotice, setEmergencyNotice] = useState<string>('');
+
+  useEffect(() => {
+    const fetchRestaurant = async () => {
+      try {
+        const res = await fetch('/api/restaurant', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.storeStatus) setStoreStatus(data.storeStatus);
+          if (data.menuOverrides) setMenuOverrides(data.menuOverrides);
+          if (data.customDishes) setCustomDishes(data.customDishes);
+          if (data.settings?.emergencyNotice) setEmergencyNotice(data.settings.emergencyNotice);
+        }
+      } catch {}
+    };
+    fetchRestaurant();
+    const interval = setInterval(fetchRestaurant, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Combined menu (transcribed + new dishes + live admin price/sold-out overrides)
+  const baseMenu = useMemo(() => {
+    return [...customDishes, ...GOLDEN_RICE_BOWL_MENU].map((dish) => {
+      const override = menuOverrides[dish.dishCode];
+      return {
+        ...dish,
+        ...(override || {}),
+      };
+    });
+  }, [customDishes, menuOverrides]);
+
   // Load cart and customer details from localStorage if present
   useEffect(() => {
     try {
@@ -156,16 +192,16 @@ export default function StorefrontPage() {
 
   // Filtered menu items
   const filteredMenu = useMemo(() => {
-    if (!searchQuery.trim()) return GOLDEN_RICE_BOWL_MENU;
+    if (!searchQuery.trim()) return baseMenu;
     const q = searchQuery.toLowerCase().trim();
-    return GOLDEN_RICE_BOWL_MENU.filter((item) => {
+    return baseMenu.filter((item) => {
       const matchCode = item.dishCode.toLowerCase() === q || item.dishCode.toLowerCase().includes(q);
       const matchName = item.name.toLowerCase().includes(q);
       const matchDesc = item.description?.toLowerCase().includes(q);
       const matchCategory = item.category.toLowerCase().includes(q);
       return matchCode || matchName || matchDesc || matchCategory;
     });
-  }, [searchQuery]);
+  }, [searchQuery, baseMenu]);
 
   // Group items by category for layout
   const categorizedItems = useMemo(() => {
@@ -335,6 +371,11 @@ export default function StorefrontPage() {
   };
 
   const handlePlaceOrder = async () => {
+    if (storeStatus && !storeStatus.isOpen) {
+      alert(`The restaurant is currently closed for orders (${storeStatus.nextOpeningText}).`);
+      return;
+    }
+
     if (!customerName || !customerPhone) {
       alert('Please provide your name and UK mobile number.');
       return;
@@ -444,12 +485,20 @@ export default function StorefrontPage() {
 
             <div className="flex items-center gap-2">
               <Link 
+                href="/admin" 
+                target="_blank"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-900/60 hover:bg-stone-900 text-gold-300 border border-gold-500/30 flex items-center gap-1 transition-colors"
+                title="Open Restaurant Admin Portal"
+              >
+                <span>Admin</span>
+              </Link>
+              <Link 
                 href="/kitchen" 
                 target="_blank"
                 className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-900/60 hover:bg-stone-900 text-gold-300 border border-gold-500/30 flex items-center gap-1 transition-colors"
                 title="Open Kitchen Management Tablet"
               >
-                <span>Kitchen Screen</span>
+                <span>Kitchen</span>
                 <ChevronRight className="w-3 h-3" />
               </Link>
             </div>
@@ -482,13 +531,39 @@ export default function StorefrontPage() {
 
             <div className="text-right hidden sm:block">
               <span className="text-xs text-stone-300 flex items-center gap-1 justify-end">
-                <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-semibold text-emerald-300">Open Now:</span> 5:00 PM – 10:00 PM
+                <Clock className={`w-3.5 h-3.5 ${storeStatus?.isOpen ? 'text-emerald-400' : 'text-red-400'}`} />
+                <span className={`font-semibold ${storeStatus?.isOpen ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {storeStatus?.isOpen ? 'Open Now' : 'Store Closed'}
+                </span>
+                <span className="text-stone-400">· {storeStatus?.nextOpeningText || 'Heathfield Station'}</span>
               </span>
             </div>
           </div>
         </div>
       </header>
+
+      {/* ================= STORE CLOSED BANNER ================= */}
+      {storeStatus && !storeStatus.isOpen && (
+        <div className="bg-red-950 border-b border-red-800 text-red-100 px-4 py-3 shadow-md animate-fade-in">
+          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs sm:text-sm">
+            <div className="flex items-start sm:items-center gap-2.5">
+              <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5 sm:mt-0 animate-pulse" />
+              <div>
+                <span className="font-black uppercase tracking-wide text-white">Restaurant Currently Closed for Orders</span>
+                <p className="text-[11px] sm:text-xs text-red-200 mt-0.5">
+                  {emergencyNotice || storeStatus.reason} — <strong className="text-white underline decoration-amber-400">{storeStatus.nextOpeningText}</strong>. Feel free to browse our menu below!
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/admin"
+              className="px-3 py-1.5 rounded-lg bg-red-900 hover:bg-red-800 text-xs font-bold text-red-100 whitespace-nowrap border border-red-700 text-center self-start sm:self-auto"
+            >
+              Restaurant Admin
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* ================= ALLERGEN & TRUST BANNER ================= */}
       <section className="bg-amber-50/80 border-b border-amber-200/60 text-amber-950 text-xs px-4 py-2">
@@ -1191,9 +1266,18 @@ export default function StorefrontPage() {
 
               <button
                 onClick={handlePlaceOrder}
-                className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-transform"
+                disabled={storeStatus?.isOpen === false}
+                className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-transform ${
+                  storeStatus?.isOpen === false
+                    ? 'bg-stone-300 text-stone-500 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white'
+                }`}
               >
-                <span>Place Order & Pay (£{(cartTotalPence / 100).toFixed(2)})</span>
+                <span>
+                  {storeStatus?.isOpen === false
+                    ? `Store Closed (${storeStatus.nextOpeningText})`
+                    : `Place Order & Pay (£${(cartTotalPence / 100).toFixed(2)})`}
+                </span>
               </button>
 
               <p className="text-[10px] text-stone-400 text-center">
@@ -1282,12 +1366,20 @@ export default function StorefrontPage() {
                   </>
                 ) : isReceived ? (
                   <>
-                    <h3 className="text-xl font-black text-stone-900 mt-2">
-                      Order Sent to Kitchen!
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-black tracking-wide uppercase mt-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                      Kitchen Review In Progress
+                    </div>
+                    <h3 className="text-2xl sm:text-3xl font-black text-stone-900 mt-3 leading-tight tracking-tight">
+                      Please wait whilst the restaurant confirms your order and wait time
                     </h3>
-                    <p className="text-xs text-stone-500 mt-1">
-                      The kitchen terminal is chiming. Staff are reviewing your order and confirming preparation time...
+                    <p className="text-xs sm:text-sm text-stone-600 mt-2 leading-relaxed">
+                      Your order has been received by the kitchen terminal. Staff are reviewing your dishes now and assigning an accurate preparation time.
                     </p>
+                    <div className="mt-3.5 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-center justify-center gap-2 text-xs font-bold text-amber-800">
+                      <Clock className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                      <span>The kitchen is chiming — this screen updates automatically in a few seconds...</span>
+                    </div>
                   </>
                 ) : isCooking ? (
                   <>

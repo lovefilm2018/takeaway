@@ -380,6 +380,104 @@ export const DISH_PROMPTS: DishPrompt[] = [
     category: 'Special Set Dinners',
     prompt: 'Feast banquet spread of British Chinese takeaway dishes, sweet and sour chicken balls, beef in black bean, crispy spring rolls and egg fried rice, food photography',
   },
+
+  // Missing Dishes Batch
+  {
+    code: 'G3',
+    name: 'Spiced Smoky Shredded Chicken',
+    category: 'Starters',
+    prompt: 'Crispy shredded spiced smoked chicken strips with chilli flakes and spring onions, Chinese takeaway, appetizing food photography',
+  },
+  {
+    code: 'T5',
+    name: 'Butterfly Prawns (8)',
+    category: 'Starters',
+    prompt: 'Golden crispy breaded butterfly king prawns on a plate with sweet and sour dip, takeaway food photography',
+  },
+  {
+    code: '5',
+    name: 'Crab Meat & Sweet Corn Soup',
+    category: 'Soup',
+    prompt: 'Bowl of comforting Chinese takeaway crab meat and sweet corn soup with egg ribbons, steaming hot, food photography',
+  },
+  {
+    code: '14',
+    name: 'Roast Duck with Rice',
+    category: 'Rice Dishes',
+    prompt: 'Sliced Chinese roast duck with crispy skin served over steamed jasmine rice with rich soy duck gravy, takeaway food photography',
+  },
+  {
+    code: '15',
+    name: 'Barbecued Pork with Rice',
+    category: 'Rice Dishes',
+    prompt: 'Chinese char siu roast barbecued pork slices served over white steamed rice with green pak choi, takeaway food photography',
+  },
+  {
+    code: '18',
+    name: 'Plain Boiled Rice',
+    category: 'Rice Dishes',
+    prompt: 'Bowl of fluffy steaming plain white jasmine boiled rice, Chinese takeaway side, clean food photography',
+  },
+  {
+    code: '31',
+    name: 'Singapore Chow Mein',
+    category: 'Chow Mein & Noodles',
+    prompt: 'Spicy wok fried Singapore chow mein noodles with thin rice vermicelli noodles, chicken, char siu pork, prawns, egg and curry spices, takeaway food photography',
+  },
+  {
+    code: 'G37',
+    name: 'Sweet & Sour Mixed Balls',
+    category: 'Sweet & Sour Dishes',
+    prompt: 'Crispy battered golden sweet and sour mixed balls of king prawn and chicken in a takeaway container with bright sweet and sour sauce dip, food photography',
+  },
+  {
+    code: '47',
+    name: 'Duck Curry',
+    category: 'Curry Dishes',
+    prompt: 'British Chinese takeaway duck curry in a rich yellow curry sauce with sliced onions, peas and mushrooms, food photography',
+  },
+  {
+    code: '57',
+    name: 'Curry Sauce Tub',
+    category: 'Curry Dishes',
+    prompt: 'Plastic takeaway tub of steaming hot thick British Chinese chip shop curry sauce, smooth golden sauce, food photography',
+  },
+  {
+    code: 'Z3',
+    name: 'Value Meal Z3',
+    category: 'Value Set Meals (£10.80)',
+    prompt: 'Takeaway combo meal box with sweet and sour pork balls, egg fried rice and prawn crackers, food photography',
+  },
+  {
+    code: 'Z4',
+    name: 'Value Meal Z4',
+    category: 'Value Set Meals (£10.80)',
+    prompt: 'Chinese takeaway set combo with beef in black bean sauce and egg fried rice in split container, food photography',
+  },
+  {
+    code: 'Z6',
+    name: 'Value Meal Z6',
+    category: 'Value Set Meals (£10.80)',
+    prompt: 'Chinese takeaway single combo meal with chicken in oyster sauce and soft chow mein noodles, food photography',
+  },
+  {
+    code: 'A',
+    name: 'Set Dinner A (For One Person)',
+    category: 'Special Set Dinners',
+    prompt: 'Single person British Chinese feast with sweet and sour chicken, beef with mushrooms, crispy spring roll and egg fried rice, food photography',
+  },
+  {
+    code: 'C',
+    name: 'Set Dinner C (For Three Persons)',
+    category: 'Special Set Dinners',
+    prompt: 'Grand British Chinese family feast for three persons, crispy aromatic duck with pancakes, king prawn curry, sweet and sour pork, beef chow mein and special fried rice, banquet table food photography',
+  },
+  {
+    code: 'D2',
+    name: 'Set Dinner D2 (For Four Persons)',
+    category: 'Special Set Dinners',
+    prompt: 'Magnificent British Chinese takeaway feast for four people, platters of barbecue ribs, crispy duck, chicken in black bean, crispy beef, yeung chow fried rice, food photography',
+  },
 ];
 
 async function generateDishImages() {

@@ -130,6 +130,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-g3',
     dishCode: 'G3',
+    imageUrl: '/images/dishes/G3.jpg',
     name: 'Spiced Smoky Shredded Chicken',
     chineseName: '熏鸡丝',
     description: 'Lightly battered and fried with spices, chilli, onions & garlic.',
@@ -222,6 +223,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'starter-t5',
     dishCode: 'T5',
+    imageUrl: '/images/dishes/T5.jpg',
     name: 'Butterfly Prawns (8)',
     chineseName: '蝴蝶虾',
     category: 'Starters',
@@ -254,6 +256,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'soup-5',
     dishCode: '5',
+    imageUrl: '/images/dishes/5.jpg',
     name: 'Crab Meat & Sweet Corn Soup',
     chineseName: '蟹肉粟米汤',
     category: 'Soup',
@@ -342,6 +345,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'rice-14',
     dishCode: '14',
+    imageUrl: '/images/dishes/14.jpg',
     name: 'Roast Duck with Rice',
     chineseName: '烧鸭饭',
     category: 'Rice Dishes',
@@ -351,6 +355,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'rice-15',
     dishCode: '15',
+    imageUrl: '/images/dishes/15.jpg',
     name: 'Barbecued Pork with Rice',
     chineseName: '叉烧饭',
     category: 'Rice Dishes',
@@ -382,6 +387,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'rice-18',
     dishCode: '18',
+    imageUrl: '/images/dishes/18.jpg',
     name: 'Plain Boiled Rice',
     chineseName: '白饭',
     category: 'Rice Dishes',
@@ -439,6 +445,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'chowmein-31',
     dishCode: '31',
+    imageUrl: '/images/dishes/31.jpg',
     name: 'Singapore Chow Mein',
     chineseName: '星洲炒面',
     category: 'Chow Mein & Noodles',
@@ -509,6 +516,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'ss-g37',
     dishCode: 'G37',
+    imageUrl: '/images/dishes/G37.jpg',
     name: 'Sweet & Sour Mixed Balls',
     chineseName: '咕噜什球',
     description: '5 pork, 5 chicken, 5 king prawn balls with sweet & sour dip.',
@@ -543,6 +551,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'curry-47',
     dishCode: '47',
+    imageUrl: '/images/dishes/47.jpg',
     name: 'Duck Curry',
     chineseName: '咖喱鸭',
     category: 'Curry Dishes',
@@ -597,6 +606,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'curry-57',
     dishCode: '57',
+    imageUrl: '/images/dishes/57.jpg',
     name: 'Curry Sauce Tub',
     chineseName: '咖喱汁',
     category: 'Curry Dishes',
@@ -816,6 +826,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'set-z3',
     dishCode: 'Z3',
+    imageUrl: '/images/dishes/Z3.jpg',
     name: 'Value Meal Z3',
     chineseName: '套餐Z3',
     description: 'Fried Rice, Chicken Satay, Pancake Roll (1).',
@@ -827,6 +838,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'set-z4',
     dishCode: 'Z4',
+    imageUrl: '/images/dishes/Z4.jpg',
     name: 'Value Meal Z4',
     chineseName: '套餐Z4',
     description: 'Fried Rice, Chicken Balls (3), Chicken with Bamboo Shoots & Cashew Nuts.',
@@ -838,6 +850,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'set-z6',
     dishCode: 'Z6',
+    imageUrl: '/images/dishes/Z6.jpg',
     name: 'Value Meal Z6',
     chineseName: '套餐Z6',
     description: 'Fried Rice, Sweet & Sour Chicken Peking Style, Pancake Roll (1).',
@@ -850,6 +863,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'set-a',
     dishCode: 'A',
+    imageUrl: '/images/dishes/A.jpg',
     name: 'Set Dinner A (For One Person)',
     chineseName: '一人套餐A',
     description: 'Egg Fried Rice, Chicken with Green Pepper in Black Bean Sauce, Chicken Balls (6).',
@@ -872,6 +886,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'set-c',
     dishCode: 'C',
+    imageUrl: '/images/dishes/C.jpg',
     name: 'Set Dinner C (For Three Persons)',
     chineseName: '三人套餐C',
     description: 'Mini Vegetable Rolls (12), Chicken Chow Mein (1 large), Chicken Balls (12), Chicken with Bamboo Shoots & Cashews, Barbecued Pork Spare Ribs, Beef with Green Pepper in Black Bean Sauce, Chicken Foo Yung, Prawn Crackers.',
@@ -883,6 +898,7 @@ export const GOLDEN_RICE_BOWL_MENU: MenuItem[] = [
   {
     id: 'set-d2',
     dishCode: 'D2',
+    imageUrl: '/images/dishes/D2.jpg',
     name: 'Set Dinner D2 (For Four Persons)',
     chineseName: '四人套餐D2',
     description: 'Sesame Prawns on Toast, Prawn Balls (8), Special Fried Rice (2 regular), Peking Style Ribs, 1/2 Crispy Aromatic Duck, Sweet & Sour Chicken Peking Style, Chicken in Satay Sauce, Beef with Mixed Vegetables, Prawn Crackers.',

@@ -29,6 +29,37 @@ export type OrderStatus =
 
 export type KitchenThrottleMode = 'NORMAL' | 'BUSY_PLUS_20M' | 'PAUSED';
 
+export interface DayShift {
+  isOpen: boolean;
+  isSplitShift?: boolean;
+  openTime1?: string;  // e.g. "12:00"
+  closeTime1?: string; // e.g. "14:30"
+  openTime2?: string;  // e.g. "17:00"
+  closeTime2?: string; // e.g. "23:00"
+}
+
+export interface WeeklySchedule {
+  monday: DayShift;
+  tuesday: DayShift;
+  wednesday: DayShift;
+  thursday: DayShift;
+  friday: DayShift;
+  saturday: DayShift;
+  sunday: DayShift;
+}
+
+export interface RestaurantSettings {
+  id: string;
+  name: string;
+  schedule: WeeklySchedule;
+  autoOpenMode: boolean; // true = auto-open based on schedule; false = manual control only
+  manualIsOpen: boolean; // manual toggle
+  emergencyNotice?: string;
+  phoneLandline: string;
+  baseCollectionEtaMinutes: number;
+  baseDeliveryEtaMinutes: number;
+}
+
 export interface DeliveryZoneTier {
   id: string;
   name: string;
