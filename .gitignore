@@ -40,3 +40,4 @@ env/
 *.swo
 
 CLI_*.bat
+tsconfig.tsbuildinfo

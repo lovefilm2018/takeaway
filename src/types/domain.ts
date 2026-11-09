@@ -19,7 +19,8 @@ export type UkVatRateType = 'STANDARD_20' | 'ZERO_0' | 'OUTSIDE_SCOPE';
 export type OrderStatus =
   | 'AWAITING_PAYMENT'
   | 'RECEIVED'              // Paid; alert chime loops on kitchen terminal
-  | 'CONFIRMED'             // Kitchen accepted with ETA (+15m, +25m, +40m, +60m)
+  | 'AWAITING_CUSTOMER_APPROVAL' // Surge ETA (>45m) offered; 90s customer confirmation window
+  | 'CONFIRMED'             // Kitchen accepted with ETA (+15m, +25m, +40m, +60m, etc.)
   | 'COOKING'               // In prep at wok station
   | 'READY_FOR_COLLECTION'  // Bagged and waiting at counter
   | 'OUT_FOR_DELIVERY'      // Driver scanned receipt QR code
@@ -163,6 +164,9 @@ export interface Order {
   tipPence: number;
   totalPence: number;
   estimatedReadyAt?: string; // ISO string
+  surgeEtaMinutes?: number;
+  surgeRequestedAt?: string;
+  surgeExpiresAt?: string;
   createdAt: string;
   driverDispatchToken?: string;
 }

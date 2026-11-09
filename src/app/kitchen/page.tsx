@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { 
   Bell, 
@@ -20,7 +20,10 @@ import {
   RefreshCw,
   QrCode,
   SlidersHorizontal,
-  ChevronLeft
+  ChevronLeft,
+  Timer,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { GOLDEN_RICE_BOWL_RESTAURANT, GOLDEN_RICE_BOWL_MENU } from '../../data/goldenRiceBowlMenu';
 import { Order, OrderStatus, KitchenThrottleMode } from '../../types/domain';
@@ -29,20 +32,47 @@ export default function KitchenPortalPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [throttleMode, setThrottleMode] = useState<KitchenThrottleMode>('NORMAL');
   const [isStockDrawerOpen, setIsStockDrawerOpen] = useState(false);
   const [soldOutDishCodes, setSoldOutDishCodes] = useState<string[]>([]);
   const [selectedTicketForPrint, setSelectedTicketForPrint] = useState<Order | null>(null);
+  const [customEtaOrder, setCustomEtaOrder] = useState<Order | null>(null);
+  const [customMinutesInput, setCustomMinutesInput] = useState<number>(90);
+  const [currentTime, setCurrentTime] = useState<number>(Date.now());
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  const [isPolling, setIsPolling] = useState(false);
+
+  // Keep live 1-second ticker for surge countdowns
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Unlock Web Audio context on user gesture
+  const unlockAudioContext = () => {
+    try {
+      const ctx = audioContext || new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      setAudioContext(ctx);
+      setAudioUnlocked(true);
+    } catch {}
+  };
 
   // Load orders from live Cloud Firestore API + localStorage cache fallback
   const loadOrders = async () => {
+    setIsPolling(true);
     try {
       const res = await fetch('/api/orders', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
-        if (data.orders && Array.isArray(data.orders) && data.orders.length > 0) {
+        if (data.orders && Array.isArray(data.orders)) {
           setOrders(data.orders);
+          setLastSyncTime(new Date());
           localStorage.setItem('grb_orders_bus', JSON.stringify(data.orders));
+          setIsPolling(false);
           return;
         }
       }
@@ -56,6 +86,7 @@ export default function KitchenPortalPage() {
         setOrders(JSON.parse(localData));
       }
     } catch {}
+    setIsPolling(false);
   };
 
   useEffect(() => {
@@ -64,8 +95,8 @@ export default function KitchenPortalPage() {
     window.addEventListener('storage', handleStorage);
     window.addEventListener('grb_new_order', handleStorage);
 
-    // Periodic poll every 3 seconds for new orders
-    const interval = setInterval(loadOrders, 3000);
+    // Fast periodic poll every 2.5 seconds for instant multi-device sync
+    const interval = setInterval(loadOrders, 2500);
     return () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('grb_new_order', handleStorage);
@@ -79,6 +110,7 @@ export default function KitchenPortalPage() {
     try {
       const ctx = audioContext || new (window.AudioContext || (window as any).webkitAudioContext)();
       if (!audioContext) setAudioContext(ctx);
+      if (ctx.state === 'suspended') return;
 
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -94,30 +126,50 @@ export default function KitchenPortalPage() {
     } catch {}
   };
 
-  // Check for any unconfirmed orders and chime
-  const pendingOrders = orders.filter((o) => o.status === 'RECEIVED');
+  // Play pleasant single ding when customer accepts a surge wait time
+  const playAcceptedDing = () => {
+    if (!soundEnabled) return;
+    try {
+      const ctx = audioContext || new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioContext) setAudioContext(ctx);
+      if (ctx.state === 'suspended') return;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc.frequency.exponentialRampToValueAtTime(1046.5, ctx.currentTime + 0.2); // C6
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } catch {}
+  };
+
+  // Filter orders by domain status
+  const unacknowledgedOrders = orders.filter((o) => o.status === 'RECEIVED');
+  const surgePendingOrders = orders.filter((o) => o.status === 'AWAITING_CUSTOMER_APPROVAL');
+  const actionRequiredOrders = [...unacknowledgedOrders, ...surgePendingOrders];
+  const confirmedOrders = orders.filter((o) => o.status === 'CONFIRMED' || o.status === 'COOKING');
+  const readyOrders = orders.filter((o) => o.status === 'READY_FOR_COLLECTION' || o.status === 'OUT_FOR_DELIVERY');
+
+  // Looping chime only for unacknowledged 'RECEIVED' orders
   useEffect(() => {
-    if (pendingOrders.length > 0 && soundEnabled) {
+    if (unacknowledgedOrders.length > 0 && soundEnabled && audioUnlocked) {
       playKitchenChime();
-      const chimeTimer = setInterval(playKitchenChime, 4000);
+      const chimeTimer = setInterval(playKitchenChime, 3500);
       return () => clearInterval(chimeTimer);
     }
-  }, [pendingOrders.length, soundEnabled]);
+  }, [unacknowledgedOrders.length, soundEnabled, audioUnlocked]);
 
   // Order state transitions with live Cloud Firestore sync
-  const updateOrderStatus = async (orderId: string, newStatus: OrderStatus, etaMinutes?: number) => {
-    const estimatedReadyAt = etaMinutes 
-      ? new Date(Date.now() + etaMinutes * 60000).toISOString()
-      : undefined;
-
+  const updateOrderFields = async (orderId: string, updates: Partial<Order>) => {
     setOrders((prev) => {
       const updated = prev.map((ord) => {
         if (ord.id === orderId) {
-          return { 
-            ...ord, 
-            status: newStatus, 
-            estimatedReadyAt: estimatedReadyAt || ord.estimatedReadyAt 
-          };
+          return { ...ord, ...updates };
         }
         return ord;
       });
@@ -125,18 +177,42 @@ export default function KitchenPortalPage() {
       return updated;
     });
 
-    // Push update to Cloud Firestore
     try {
       await fetch(`/api/orders/${orderId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: newStatus,
-          ...(estimatedReadyAt ? { estimatedReadyAt } : {}),
-        }),
+        body: JSON.stringify(updates),
       });
     } catch (err) {
       console.error('Failed to sync order update to cloud:', err);
+    }
+  };
+
+  // Kitchen accept button handler:
+  // <= 45m: Auto confirm immediately
+  // > 45m: Trigger 90s Customer Surge Handshake
+  const handleKitchenAccept = async (orderId: string, minutes: number) => {
+    const isSurge = minutes > 45;
+    const now = new Date();
+    const estimatedReadyAt = new Date(now.getTime() + minutes * 60000).toISOString();
+
+    if (isSurge) {
+      const surgeRequestedAt = now.toISOString();
+      const surgeExpiresAt = new Date(now.getTime() + 90000).toISOString(); // 90 seconds window
+      await updateOrderFields(orderId, {
+        status: 'AWAITING_CUSTOMER_APPROVAL',
+        surgeEtaMinutes: minutes,
+        estimatedReadyAt,
+        surgeRequestedAt,
+        surgeExpiresAt,
+      });
+    } else {
+      await updateOrderFields(orderId, {
+        status: 'CONFIRMED',
+        estimatedReadyAt,
+      });
+      const ord = orders.find((o) => o.id === orderId);
+      if (ord) setSelectedTicketForPrint(ord);
     }
   };
 
@@ -147,11 +223,22 @@ export default function KitchenPortalPage() {
     );
   };
 
-  const confirmedOrders = orders.filter((o) => o.status === 'CONFIRMED' || o.status === 'COOKING');
-  const readyOrders = orders.filter((o) => o.status === 'READY_FOR_COLLECTION' || o.status === 'OUT_FOR_DELIVERY');
-
   return (
-    <div className="min-h-screen bg-stone-900 text-stone-100 flex flex-col font-sans select-none">
+    <div 
+      className="min-h-screen bg-stone-900 text-stone-100 flex flex-col font-sans select-none"
+      onClick={unlockAudioContext}
+    >
+      {/* ================= AUDIO UNLOCK BANNER IF SUSPENDED ================= */}
+      {!audioUnlocked && (
+        <div 
+          onClick={unlockAudioContext}
+          className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-4 py-2 text-center text-xs font-black cursor-pointer shadow-lg flex items-center justify-center gap-2"
+        >
+          <Volume2 className="w-4 h-4 animate-bounce" />
+          <span>TAP ANYWHERE ON SCREEN TO ACTIVATE 105dB KITCHEN CHIME ALERTS</span>
+        </div>
+      )}
+
       {/* ================= TOP TABLET CONTROL BAR ================= */}
       <header className="bg-stone-950 border-b border-stone-800 px-4 py-3 flex items-center justify-between shadow-lg sticky top-0 z-30">
         <div className="flex items-center gap-3">
@@ -160,18 +247,22 @@ export default function KitchenPortalPage() {
             className="p-2 rounded-xl bg-stone-800/80 hover:bg-stone-700 text-stone-300 flex items-center gap-1.5 text-xs font-semibold"
           >
             <ChevronLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Back to Customer Store</span>
+            <span className="hidden sm:inline">Storefront</span>
           </Link>
 
           <div>
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
               <h1 className="font-black text-white text-base sm:text-lg tracking-tight">
-                GOLDEN RICE BOWL · KITCHEN PORTAL
+                GOLDEN RICE BOWL · PASS TERMINAL
               </h1>
             </div>
-            <p className="text-[11px] text-stone-400">
-              Heathfield Pass Station · ESC/POS 80mm Ready
+            <p className="text-[11px] text-stone-400 flex items-center gap-2">
+              <span>Heathfield Station</span>
+              <span>•</span>
+              <span className="text-emerald-400 font-mono">
+                Cloud Sync: {Math.max(0, Math.round((currentTime - lastSyncTime.getTime()) / 1000))}s ago
+              </span>
             </p>
           </div>
         </div>
@@ -179,13 +270,17 @@ export default function KitchenPortalPage() {
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Audio Chime Mute/Unmute */}
           <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
+            onClick={(e) => {
+              e.stopPropagation();
+              unlockAudioContext();
+              setSoundEnabled(!soundEnabled);
+            }}
             className={`p-2.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-colors ${
               soundEnabled
                 ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
                 : 'bg-red-950/60 border-red-500/50 text-red-300'
             }`}
-            title="Toggle 105dB Looping Order Chime"
+            title="Toggle Kitchen Alert Chime"
           >
             {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             <span className="hidden sm:inline">{soundEnabled ? 'Chime ON' : 'Chime MUTED'}</span>
@@ -193,7 +288,8 @@ export default function KitchenPortalPage() {
 
           {/* Surge Mode / Throttle Switch */}
           <button
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               if (throttleMode === 'NORMAL') setThrottleMode('BUSY_PLUS_20M');
               else if (throttleMode === 'BUSY_PLUS_20M') setThrottleMode('PAUSED');
               else setThrottleMode('NORMAL');
@@ -207,14 +303,17 @@ export default function KitchenPortalPage() {
             }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>
+            <span className="hidden md:inline">
               {throttleMode === 'NORMAL' ? 'Normal Pace' : throttleMode === 'BUSY_PLUS_20M' ? 'Kitchen Busy (+20m)' : 'Orders Paused'}
             </span>
           </button>
 
           {/* "86" Stock Manager */}
           <button
-            onClick={() => setIsStockDrawerOpen(true)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsStockDrawerOpen(true);
+            }}
             className="px-3 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-700 text-stone-200 text-xs font-bold flex items-center gap-1.5"
           >
             <Ban className="w-3.5 h-3.5 text-red-400" />
@@ -225,157 +324,252 @@ export default function KitchenPortalPage() {
 
       {/* ================= ORDER FEED COLUMNS ================= */}
       <main className="flex-1 p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-x-hidden">
-        {/* ================= COLUMN 1: NEW ORDERS (ACTION REQUIRED) ================= */}
+        {/* ================= COLUMN 1: NEW & AWAITING SURGE APPROVAL ================= */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between border-b border-stone-800 pb-2">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+              <span className={`w-3 h-3 rounded-full ${unacknowledgedOrders.length > 0 ? 'bg-amber-500 animate-ping' : 'bg-amber-500'}`}></span>
               <h2 className="font-black text-amber-400 text-sm uppercase tracking-wider">
-                1. New Orders ({pendingOrders.length})
+                1. Action Required ({actionRequiredOrders.length})
               </h2>
             </div>
-            {pendingOrders.length > 0 && (
+            {actionRequiredOrders.length > 0 && (
               <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full animate-pulse">
-                ACTION REQUIRED
+                {unacknowledgedOrders.length} NEW · {surgePendingOrders.length} SURGE PENDING
               </span>
             )}
           </div>
 
-          {pendingOrders.length === 0 ? (
+          {actionRequiredOrders.length === 0 ? (
             <div className="flex-1 min-h-[220px] rounded-2xl border-2 border-dashed border-stone-800 flex flex-col items-center justify-center text-stone-500 p-6 text-center">
               <UtensilsCrossed className="w-10 h-10 mb-2 opacity-30" />
               <p className="text-xs font-bold">No unconfirmed orders</p>
               <p className="text-[11px] mt-1 text-stone-600">
-                Place an order in the Customer Storefront tab to see it appear here with sound alert.
+                New orders placed in the Storefront appear here in real time.
               </p>
             </div>
           ) : (
-            pendingOrders.map((ord) => (
-              <div
-                key={ord.id}
-                className="bg-stone-950 rounded-2xl border-2 border-amber-500/80 shadow-2xl p-4 space-y-3 relative overflow-hidden animate-pulse-glow"
-              >
-                {/* Header with Display ID & Delivery/Collection */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-2xl font-black text-white font-mono tracking-tight">
-                      {ord.displayNumber}
-                    </span>
-                    <span className="text-xs text-stone-400 ml-2 font-semibold">
-                      {ord.customer.name}
-                    </span>
-                  </div>
+            actionRequiredOrders.map((ord) => {
+              const isSurgePending = ord.status === 'AWAITING_CUSTOMER_APPROVAL';
+              const secondsLeft = ord.surgeExpiresAt 
+                ? Math.max(0, Math.ceil((new Date(ord.surgeExpiresAt).getTime() - currentTime) / 1000))
+                : 0;
 
-                  <span
-                    className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
-                      ord.fulfillmentType === 'DELIVERY'
-                        ? 'bg-blue-950 text-blue-300 border border-blue-500/50'
-                        : 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
-                    }`}
-                  >
-                    {ord.fulfillmentType === 'DELIVERY' ? <Bike className="w-3.5 h-3.5" /> : <ShoppingBag className="w-3.5 h-3.5" />}
-                    {ord.fulfillmentType}
-                  </span>
-                </div>
-
-                {/* High Contrast Red Allergy Warning Banner */}
-                {ord.allergyDeclaration?.hasAllergies && (
-                  <div className="p-2.5 rounded-xl bg-red-600 text-white font-black text-xs flex items-center gap-2 shadow">
-                    <AlertTriangle className="w-5 h-5 shrink-0" />
-                    <div>
-                      <p className="uppercase tracking-wider">!! ALLERGY ALERT !!</p>
-                      <p className="text-[11px] font-normal leading-tight">
-                        {ord.allergyDeclaration.notes || 'Allergy declared by customer.'}
+              return (
+                <div
+                  key={ord.id}
+                  className={`bg-stone-950 rounded-2xl shadow-2xl p-4 space-y-3 relative overflow-hidden transition-all ${
+                    isSurgePending
+                      ? 'border-2 border-amber-400 ring-2 ring-amber-500/30'
+                      : 'border-2 border-amber-500/80 animate-pulse-glow'
+                  }`}
+                >
+                  {/* SURGE HANDSHAKE STATUS BAR */}
+                  {isSurgePending && (
+                    <div className="bg-amber-950/80 border border-amber-500/60 rounded-xl p-2.5 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between font-black text-amber-300">
+                        <span className="flex items-center gap-1.5">
+                          <Timer className="w-4 h-4 animate-spin" />
+                          SURGE ETA OFFERED: {ord.surgeEtaMinutes} MINS
+                        </span>
+                        <span className="font-mono text-white bg-amber-600 px-2 py-0.5 rounded-md text-[11px]">
+                          {secondsLeft}s left
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-200/90 leading-tight">
+                        Waiting for customer to confirm wait time on mobile. Auto-confirms at 0s.
                       </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Delivery Address Note if Delivery */}
-                {ord.fulfillmentType === 'DELIVERY' && ord.customer.deliveryAddress && (
-                  <div className="p-2 rounded-xl bg-stone-900 border border-stone-800 text-xs text-stone-300">
-                    <p className="font-semibold text-white">
-                      {ord.customer.deliveryAddress.line1}, {ord.customer.deliveryAddress.postcode}
-                    </p>
-                    {ord.customer.deliveryAddress.driverNotes && (
-                      <p className="text-[11px] text-amber-300 italic mt-0.5">
-                        Note: {ord.customer.deliveryAddress.driverNotes}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Line Items */}
-                <div className="space-y-2 pt-1 border-t border-stone-800/80">
-                  {ord.items.map((item, idx) => (
-                    <div key={idx} className="flex items-start justify-between text-xs py-1 border-b border-stone-900 last:border-none">
-                      <div className="flex-1">
-                        <div className="flex items-baseline gap-1.5 font-black text-white">
-                          <span className="text-amber-400 font-mono text-sm">{item.quantity}x</span>
-                          <span className="text-stone-400 font-mono text-xs">#{item.dishCode}</span>
-                          <span className="text-sm">{item.name}</span>
-                          {item.chineseName && (
-                            <span className="text-stone-400 text-xs font-serif font-normal">
-                              {item.chineseName}
-                            </span>
-                          )}
-                        </div>
-
-                        {item.modifiers.length > 0 && (
-                          <p className="text-[11px] text-amber-300 font-bold ml-6 mt-0.5">
-                            + {item.modifiers.map((m) => m.optionName).join(', ')}
-                          </p>
-                        )}
-
-                        {item.specialInstructions && (
-                          <p className="text-[11px] text-stone-400 italic ml-6 mt-0.5">
-                            "{item.specialInstructions}"
-                          </p>
-                        )}
+                      {/* Animated Progress Bar */}
+                      <div className="w-full bg-stone-800 h-1.5 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-amber-400 h-full transition-all duration-1000 ease-linear"
+                          style={{ width: `${Math.min(100, (secondsLeft / 90) * 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => {
+                            playAcceptedDing();
+                            updateOrderFields(ord.id, { status: 'CONFIRMED' });
+                            setSelectedTicketForPrint(ord);
+                          }}
+                          className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 shadow"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          Customer Phoned / Force Accept
+                        </button>
+                        <button
+                          onClick={() => updateOrderFields(ord.id, { status: 'CANCELLED' })}
+                          className="px-2.5 py-1.5 bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 rounded-lg font-bold text-[11px]"
+                        >
+                          Cancel
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )}
 
-                {/* 1-Tap ETA Accept Buttons */}
-                <div className="pt-2 border-t border-stone-800 space-y-2">
-                  <div className="text-[11px] font-bold text-stone-400 uppercase">
-                    1-Tap Order Accept (Select Cooking Time):
+                  {/* Header with Display ID & Delivery/Collection */}
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-2xl font-black text-white font-mono tracking-tight">
+                        {ord.displayNumber}
+                      </span>
+                      <span className="text-xs text-stone-400 ml-2 font-semibold">
+                        {ord.customer.name}
+                      </span>
+                    </div>
+
+                    <span
+                      className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                        ord.fulfillmentType === 'DELIVERY'
+                          ? 'bg-blue-950 text-blue-300 border border-blue-500/50'
+                          : 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
+                      }`}
+                    >
+                      {ord.fulfillmentType === 'DELIVERY' ? <Bike className="w-3.5 h-3.5" /> : <ShoppingBag className="w-3.5 h-3.5" />}
+                      {ord.fulfillmentType}
+                    </span>
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[15, 25, 40, 60].map((mins) => (
-                      <button
-                        key={mins}
-                        onClick={() => {
-                          updateOrderStatus(ord.id, 'CONFIRMED', mins);
-                          setSelectedTicketForPrint(ord);
-                        }}
-                        className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-sm shadow flex flex-col items-center justify-center transition-all"
-                      >
-                        <span>{mins}m</span>
-                        <span className="text-[9px] font-normal opacity-80">Accept</span>
-                      </button>
+
+                  {/* High Contrast Red Allergy Warning Banner */}
+                  {ord.allergyDeclaration?.hasAllergies && (
+                    <div className="p-2.5 rounded-xl bg-red-600 text-white font-black text-xs flex items-center gap-2 shadow">
+                      <AlertTriangle className="w-5 h-5 shrink-0" />
+                      <div>
+                        <p className="uppercase tracking-wider">!! ALLERGY ALERT !!</p>
+                        <p className="text-[11px] font-normal leading-tight">
+                          {ord.allergyDeclaration.notes || 'Allergy declared by customer.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Delivery Address Note if Delivery */}
+                  {ord.fulfillmentType === 'DELIVERY' && ord.customer.deliveryAddress && (
+                    <div className="p-2 rounded-xl bg-stone-900 border border-stone-800 text-xs text-stone-300">
+                      <p className="font-semibold text-white">
+                        {ord.customer.deliveryAddress.line1}, {ord.customer.deliveryAddress.postcode}
+                      </p>
+                      {ord.customer.deliveryAddress.driverNotes && (
+                        <p className="text-[11px] text-amber-300 italic mt-0.5">
+                          Note: {ord.customer.deliveryAddress.driverNotes}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Line Items */}
+                  <div className="space-y-2 pt-1 border-t border-stone-800/80">
+                    {ord.items.map((item, idx) => (
+                      <div key={idx} className="flex items-start justify-between text-xs py-1 border-b border-stone-900 last:border-none">
+                        <div className="flex-1">
+                          <div className="flex items-baseline gap-1.5 font-black text-white">
+                            <span className="text-amber-400 font-mono text-sm">{item.quantity}x</span>
+                            <span className="text-stone-400 font-mono text-xs">#{item.dishCode}</span>
+                            <span className="text-sm">{item.name}</span>
+                            {item.chineseName && (
+                              <span className="text-stone-400 text-xs font-serif font-normal">
+                                {item.chineseName}
+                              </span>
+                            )}
+                          </div>
+
+                          {item.modifiers && item.modifiers.length > 0 && (
+                            <p className="text-[11px] text-amber-300 font-bold ml-6 mt-0.5">
+                              + {item.modifiers.map((m) => m.optionName).join(', ')}
+                            </p>
+                          )}
+
+                          {item.specialInstructions && (
+                            <p className="text-[11px] text-stone-400 italic ml-6 mt-0.5">
+                              "{item.specialInstructions}"
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     ))}
                   </div>
 
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      onClick={() => setSelectedTicketForPrint(ord)}
-                      className="flex-1 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold flex items-center justify-center gap-1.5"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Preview 80mm Ticket</span>
-                    </button>
-                    <button
-                      onClick={() => updateOrderStatus(ord.id, 'CANCELLED')}
-                      className="px-3 py-2 rounded-xl bg-red-950/60 hover:bg-red-900 border border-red-800/50 text-red-300 text-xs font-bold"
-                    >
-                      Reject
-                    </button>
-                  </div>
+                  {/* ETA Accept Control Panel (Only if unacknowledged) */}
+                  {!isSurgePending && (
+                    <div className="pt-2 border-t border-stone-800 space-y-2.5">
+                      {/* Standard Normal ETAs */}
+                      <div>
+                        <div className="text-[10px] font-bold text-stone-400 uppercase tracking-wide mb-1 flex justify-between">
+                          <span>Standard Wait (Immediate Auto-Confirm):</span>
+                          <span className="text-emerald-400 font-mono">≤45 mins</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[15, 25, 40].map((mins) => (
+                            <button
+                              key={mins}
+                              onClick={() => handleKitchenAccept(ord.id, mins)}
+                              className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs shadow flex flex-col items-center justify-center transition-all"
+                            >
+                              <span className="text-sm font-mono">{mins}m</span>
+                              <span className="text-[9px] font-normal opacity-85">Instant Accept</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Extended Surge ETAs with 90s Customer Handshake */}
+                      <div>
+                        <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wide mb-1 flex justify-between">
+                          <span>Peak Surge Wait (Customer 90s Approval):</span>
+                          <span className="text-amber-400 font-mono">&gt;45 mins</span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {[
+                            { label: '60m', mins: 60 },
+                            { label: '75m', mins: 75 },
+                            { label: '90m', mins: 90 },
+                            { label: '2 hrs', mins: 120 },
+                            { label: '3 hrs', mins: 180 },
+                          ].map((tier) => (
+                            <button
+                              key={tier.mins}
+                              onClick={() => handleKitchenAccept(ord.id, tier.mins)}
+                              className="py-2 rounded-xl bg-amber-600 hover:bg-amber-500 active:scale-95 text-stone-950 font-black text-xs shadow flex flex-col items-center justify-center transition-all"
+                            >
+                              <span className="font-mono text-xs">{tier.label}</span>
+                              <span className="text-[8px] font-bold uppercase opacity-90">Surge</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Custom Time & Rejection */}
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => {
+                            setCustomEtaOrder(ord);
+                            setCustomMinutesInput(90);
+                          }}
+                          className="flex-1 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-bold flex items-center justify-center gap-1.5 border border-stone-700"
+                        >
+                          <Clock className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Custom Time...</span>
+                        </button>
+                        <button
+                          onClick={() => setSelectedTicketForPrint(ord)}
+                          className="px-3 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold flex items-center justify-center gap-1.5"
+                          title="Preview Ticket"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => updateOrderFields(ord.id, { status: 'CANCELLED' })}
+                          className="px-3 py-2 rounded-xl bg-red-950/60 hover:bg-red-900 border border-red-800/50 text-red-300 text-xs font-bold"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -442,7 +636,7 @@ export default function KitchenPortalPage() {
                       const next = ord.fulfillmentType === 'DELIVERY' 
                         ? 'OUT_FOR_DELIVERY' 
                         : 'READY_FOR_COLLECTION';
-                      updateOrderStatus(ord.id, next);
+                      updateOrderFields(ord.id, { status: next });
                     }}
                     className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow flex items-center justify-center gap-1.5"
                   >
@@ -500,7 +694,7 @@ export default function KitchenPortalPage() {
                 </div>
 
                 <button
-                  onClick={() => updateOrderStatus(ord.id, 'COMPLETED')}
+                  onClick={() => updateOrderFields(ord.id, { status: 'COMPLETED' })}
                   className="w-full py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs flex items-center justify-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -511,6 +705,83 @@ export default function KitchenPortalPage() {
           )}
         </div>
       </main>
+
+      {/* ================= CUSTOM ETA INPUT MODAL ================= */}
+      {customEtaOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-stone-900 border border-stone-700 max-w-sm w-full rounded-3xl p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-white text-base">
+                  Set Custom Wait Time ({customEtaOrder.displayNumber})
+                </h3>
+              </div>
+              <button
+                onClick={() => setCustomEtaOrder(null)}
+                className="w-8 h-8 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-stone-400">
+              Enter preparation time in minutes for large banquet or surge orders:
+            </p>
+
+            <div className="text-center py-2">
+              <div className="text-4xl font-black font-mono text-amber-400">
+                {customMinutesInput} <span className="text-lg text-stone-400 font-sans">mins</span>
+              </div>
+              <p className="text-xs text-stone-400 mt-1">
+                ({(customMinutesInput / 60).toFixed(1)} hours)
+              </p>
+            </div>
+
+            {/* Quick Increment Buttons */}
+            <div className="grid grid-cols-4 gap-2">
+              {[+15, +30, +60, +120].map((delta) => (
+                <button
+                  key={delta}
+                  onClick={() => setCustomMinutesInput((prev) => Math.max(15, Math.min(300, prev + delta)))}
+                  className="py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-xs font-bold text-stone-200"
+                >
+                  +{delta}m
+                </button>
+              ))}
+            </div>
+
+            {/* Slider */}
+            <input
+              type="range"
+              min={15}
+              max={240}
+              step={5}
+              value={customMinutesInput}
+              onChange={(e) => setCustomMinutesInput(Number(e.target.value))}
+              className="w-full accent-amber-500 cursor-pointer"
+            />
+
+            <div className="flex gap-2 pt-2 border-t border-stone-800">
+              <button
+                onClick={() => setCustomEtaOrder(null)}
+                className="flex-1 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleKitchenAccept(customEtaOrder.id, customMinutesInput);
+                  setCustomEtaOrder(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs shadow"
+              >
+                Send {customMinutesInput}m to Customer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= 80MM RECEIPT PRINT PREVIEW MODAL ================= */}
       {selectedTicketForPrint && (
@@ -537,7 +808,7 @@ export default function KitchenPortalPage() {
                 <div className="text-center font-bold pb-2 border-b-2 border-dashed border-black">
                   <p className="text-xl font-black">{selectedTicketForPrint.fulfillmentType}</p>
                   <p className="text-3xl font-black tracking-wider">{selectedTicketForPrint.displayNumber}</p>
-                  <p className="text-xs">PROMISED READY: ASAP</p>
+                  <p className="text-xs">PROMISED READY: {selectedTicketForPrint.surgeEtaMinutes ? `${selectedTicketForPrint.surgeEtaMinutes} MINS` : 'ASAP'}</p>
                 </div>
 
                 {selectedTicketForPrint.allergyDeclaration?.hasAllergies && (
@@ -553,7 +824,7 @@ export default function KitchenPortalPage() {
                       <p className="font-black text-sm">
                         {it.quantity}x [#{it.dishCode}] {it.name} {it.chineseName}
                       </p>
-                      {it.modifiers.map((m, mIdx) => (
+                      {it.modifiers && it.modifiers.map((m, mIdx) => (
                         <p key={mIdx} className="font-bold pl-3">
                           + {m.optionName.toUpperCase()}
                         </p>

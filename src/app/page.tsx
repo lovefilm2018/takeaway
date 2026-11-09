@@ -17,14 +17,18 @@ import {
   ArrowRight,
   ShieldAlert,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Timer,
+  CheckCircle2,
+  Bell,
+  Bike
 } from 'lucide-react';
 import { 
   GOLDEN_RICE_BOWL_RESTAURANT, 
   GOLDEN_RICE_BOWL_MENU, 
   MENU_CATEGORIES 
 } from '../data/goldenRiceBowlMenu';
-import { MenuItem, OrderItem, Order } from '../types/domain';
+import { MenuItem, OrderItem, Order, OrderStatus } from '../types/domain';
 import { getSmartUpsellSuggestions } from '../utils/smartUpsellEngine';
 
 // Categories considered "Wet / Saucy Mains" that typically require rice or chips
@@ -85,6 +89,56 @@ export default function StorefrontPage() {
   const [allergyDetails, setAllergyDetails] = useState('');
   const [optOutMarketing, setOptOutMarketing] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<Order | null>(null);
+  const [currentTime, setCurrentTime] = useState<number>(Date.now());
+
+  // 1-second ticker for surge countdowns
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Poll active order state every 2 seconds for live sync with kitchen actions
+  useEffect(() => {
+    if (!orderSuccess?.id) return;
+    const pollOrder = async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderSuccess.id}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.order) {
+            setOrderSuccess(data.order);
+          }
+        }
+      } catch {}
+    };
+    const interval = setInterval(pollOrder, 2000);
+    return () => clearInterval(interval);
+  }, [orderSuccess?.id]);
+
+  // Customer Surge Handshake response
+  const handleCustomerSurgeResponse = async (accepted: boolean) => {
+    if (!orderSuccess) return;
+    const newStatus: OrderStatus = accepted ? 'CONFIRMED' : 'CANCELLED';
+    setOrderSuccess((prev) => prev ? { ...prev, status: newStatus } : null);
+    try {
+      await fetch(`/api/orders/${orderSuccess.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch (err) {
+      console.error('Failed to update surge status:', err);
+    }
+  };
+
+  // Auto-accept surge wait time after 90 seconds if no response
+  useEffect(() => {
+    if (orderSuccess?.status !== 'AWAITING_CUSTOMER_APPROVAL' || !orderSuccess.surgeExpiresAt) return;
+    const remainingMs = new Date(orderSuccess.surgeExpiresAt).getTime() - currentTime;
+    if (remainingMs <= 0) {
+      handleCustomerSurgeResponse(true);
+    }
+  }, [currentTime, orderSuccess?.status, orderSuccess?.surgeExpiresAt]);
 
   // Load cart and customer details from localStorage if present
   useEffect(() => {
@@ -1150,63 +1204,227 @@ export default function StorefrontPage() {
         </div>
       )}
 
-      {/* ================= ORDER SUCCESS CONFIRMATION MODAL ================= */}
-      {orderSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white max-w-md w-full rounded-3xl p-6 text-center space-y-4 shadow-2xl border border-stone-200">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
-              <Check className="w-8 h-8" />
-            </div>
+      {/* ================= ORDER SUCCESS & LIVE STATUS TRACKING MODAL ================= */}
+      {orderSuccess && (() => {
+        const isSurgePending = orderSuccess.status === 'AWAITING_CUSTOMER_APPROVAL';
+        const isReceived = orderSuccess.status === 'RECEIVED';
+        const isCooking = orderSuccess.status === 'COOKING';
+        const isConfirmed = orderSuccess.status === 'CONFIRMED';
+        const isReady = orderSuccess.status === 'READY_FOR_COLLECTION' || orderSuccess.status === 'OUT_FOR_DELIVERY';
+        const isCancelled = orderSuccess.status === 'CANCELLED';
 
-            <div>
-              <span className="text-xs font-mono font-bold text-imperial-800 bg-imperial-50 px-2.5 py-1 rounded-full border border-imperial-200">
-                Order {orderSuccess.displayNumber}
-              </span>
-              <h3 className="text-xl font-black text-stone-900 mt-2">
-                Order Sent to Kitchen!
-              </h3>
-              <p className="text-xs text-stone-500 mt-1">
-                The Golden Rice Bowl kitchen has received your order. The staff terminal is currently chiming.
-              </p>
-            </div>
+        const secondsLeft = orderSuccess.surgeExpiresAt 
+          ? Math.max(0, Math.ceil((new Date(orderSuccess.surgeExpiresAt).getTime() - currentTime) / 1000))
+          : 0;
 
-            <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 text-left text-xs space-y-1.5">
-              <div className="flex justify-between font-bold text-stone-900">
-                <span>Fulfillment:</span>
-                <span className="text-imperial-800 uppercase">{orderSuccess.fulfillmentType}</span>
-              </div>
-              <div className="flex justify-between text-stone-600">
-                <span>Estimated Ready:</span>
-                <span className="font-semibold text-stone-900">
-                  {orderSuccess.fulfillmentType === 'COLLECTION' ? '15–20 minutes' : '35–45 minutes'}
+        const formatReadyTime = (iso?: string) => {
+          if (!iso) return '20–30 mins';
+          try {
+            const d = new Date(iso);
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } catch {
+            return '20–30 mins';
+          }
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/75 backdrop-blur-sm animate-fade-in">
+            <div className={`bg-white max-w-md w-full rounded-3xl p-6 text-center space-y-4 shadow-2xl border ${
+              isSurgePending 
+                ? 'border-amber-400 ring-4 ring-amber-400/20' 
+                : isCancelled
+                ? 'border-red-300'
+                : 'border-stone-200'
+            }`}>
+              
+              {/* TOP STATUS BADGE & ICON */}
+              {isSurgePending ? (
+                <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-inner animate-bounce">
+                  <Timer className="w-8 h-8" />
+                </div>
+              ) : isReceived ? (
+                <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-inner relative">
+                  <Bell className="w-8 h-8 animate-wiggle" />
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full animate-ping"></span>
+                </div>
+              ) : isCooking ? (
+                <div className="w-16 h-16 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mx-auto shadow-inner">
+                  <Flame className="w-8 h-8 animate-pulse" />
+                </div>
+              ) : isReady ? (
+                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+                  {orderSuccess.fulfillmentType === 'DELIVERY' ? <Bike className="w-8 h-8" /> : <ShoppingBag className="w-8 h-8" />}
+                </div>
+              ) : isCancelled ? (
+                <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto shadow-inner">
+                  <X className="w-8 h-8" />
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+                  <Check className="w-8 h-8" />
+                </div>
+              )}
+
+              {/* TITLE & EXPLANATION */}
+              <div>
+                <span className="text-xs font-mono font-bold text-imperial-800 bg-imperial-50 px-2.5 py-1 rounded-full border border-imperial-200">
+                  Order {orderSuccess.displayNumber}
                 </span>
-              </div>
-              <div className="flex justify-between text-stone-600">
-                <span>Total Paid:</span>
-                <span className="font-semibold text-stone-900">
-                  £{(orderSuccess.totalPence / 100).toFixed(2)}
-                </span>
-              </div>
-            </div>
 
-            <div className="space-y-2 pt-2">
-              <Link
-                href="/kitchen"
-                target="_blank"
-                className="w-full py-3 rounded-xl bg-imperial-800 hover:bg-imperial-900 text-white font-bold text-xs block"
-              >
-                Open Kitchen Tablet Screen (See incoming ticket)
-              </Link>
-              <button
-                onClick={() => setOrderSuccess(null)}
-                className="w-full py-2.5 rounded-xl border border-stone-200 text-stone-600 hover:text-stone-900 text-xs font-semibold"
-              >
-                Back to Menu
-              </button>
+                {isSurgePending ? (
+                  <>
+                    <h3 className="text-xl font-black text-amber-900 mt-2">
+                      ⚠️ Peak Rush Wait Time Confirmation
+                    </h3>
+                    <p className="text-xs text-stone-600 mt-1 leading-relaxed">
+                      The kitchen is currently in peak demand. Estimated preparation time is <strong className="text-amber-800 font-bold">{orderSuccess.surgeEtaMinutes} minutes</strong> (ready ~{formatReadyTime(orderSuccess.estimatedReadyAt)}).
+                    </p>
+                  </>
+                ) : isReceived ? (
+                  <>
+                    <h3 className="text-xl font-black text-stone-900 mt-2">
+                      Order Sent to Kitchen!
+                    </h3>
+                    <p className="text-xs text-stone-500 mt-1">
+                      The kitchen terminal is chiming. Staff are reviewing your order and confirming preparation time...
+                    </p>
+                  </>
+                ) : isCooking ? (
+                  <>
+                    <h3 className="text-xl font-black text-stone-900 mt-2">
+                      Cooking at Wok Station!
+                    </h3>
+                    <p className="text-xs text-stone-500 mt-1">
+                      Your dishes are being freshly stir-fried by the chefs.
+                    </p>
+                  </>
+                ) : isReady ? (
+                  <>
+                    <h3 className="text-xl font-black text-emerald-900 mt-2">
+                      {orderSuccess.fulfillmentType === 'DELIVERY' ? 'Out for Delivery!' : 'Ready for Collection!'}
+                    </h3>
+                    <p className="text-xs text-stone-600 mt-1">
+                      {orderSuccess.fulfillmentType === 'DELIVERY'
+                        ? 'Our driver is on the way to your delivery address.'
+                        : 'Your food is bagged at the Golden Rice Bowl counter, Heathfield.'}
+                    </p>
+                  </>
+                ) : isCancelled ? (
+                  <>
+                    <h3 className="text-xl font-black text-red-700 mt-2">
+                      Order Cancelled
+                    </h3>
+                    <p className="text-xs text-stone-500 mt-1">
+                      This order was cancelled. Any pre-authorised funds have been released.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-xl font-black text-stone-900 mt-2">
+                      Order Accepted & Queued!
+                    </h3>
+                    <p className="text-xs text-stone-500 mt-1">
+                      The kitchen has scheduled your dishes for preparation.
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* SURGE 90-SECOND COUNTDOWN & DECISION BOX */}
+              {isSurgePending && (
+                <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-left space-y-3">
+                  <div className="flex items-center justify-between text-xs font-black text-amber-900">
+                    <span className="flex items-center gap-1.5">
+                      <Timer className="w-4 h-4 text-amber-600" />
+                      Do you accept this wait time?
+                    </span>
+                    <span className="font-mono bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full text-xs">
+                      {secondsLeft}s left
+                    </span>
+                  </div>
+
+                  {/* Animated Progress Bar */}
+                  <div className="w-full bg-amber-200/60 h-2 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-amber-500 h-full transition-all duration-1000 ease-linear"
+                      style={{ width: `${Math.min(100, (secondsLeft / 90) * 100)}%` }}
+                    />
+                  </div>
+
+                  <p className="text-[11px] text-amber-800 leading-tight">
+                    Please confirm or cancel. If no response is given within {secondsLeft}s, your order will automatically proceed to hold your queue place.
+                  </p>
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => handleCustomerSurgeResponse(true)}
+                      className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-transform active:scale-98 flex items-center justify-center gap-1"
+                    >
+                      <Check className="w-4 h-4" />
+                      Accept ({orderSuccess.surgeEtaMinutes}m Wait)
+                    </button>
+                    <button
+                      onClick={() => handleCustomerSurgeResponse(false)}
+                      className="px-3 py-3 bg-white border border-red-300 text-red-600 hover:bg-red-50 font-bold text-xs rounded-xl transition-colors"
+                    >
+                      Cancel Order
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ORDER DETAILS SUMMARY */}
+              <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 text-left text-xs space-y-1.5">
+                <div className="flex justify-between font-bold text-stone-900">
+                  <span>Fulfillment:</span>
+                  <span className="text-imperial-800 uppercase">{orderSuccess.fulfillmentType}</span>
+                </div>
+                <div className="flex justify-between text-stone-600">
+                  <span>Estimated Ready:</span>
+                  <span className="font-semibold text-stone-900">
+                    {orderSuccess.estimatedReadyAt 
+                      ? `${formatReadyTime(orderSuccess.estimatedReadyAt)} (${orderSuccess.surgeEtaMinutes || (orderSuccess.fulfillmentType === 'COLLECTION' ? 20 : 35)}m)`
+                      : isReceived 
+                      ? 'Kitchen setting time...'
+                      : orderSuccess.fulfillmentType === 'COLLECTION' ? '15–20 minutes' : '35–45 minutes'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-stone-600">
+                  <span>Total Paid:</span>
+                  <span className="font-semibold text-stone-900">
+                    £{(orderSuccess.totalPence / 100).toFixed(2)}
+                  </span>
+                </div>
+                {orderSuccess.items && (
+                  <div className="pt-2 border-t border-stone-200 text-[11px] text-stone-500">
+                    <span>{orderSuccess.items.reduce((a, b) => a + b.quantity, 0)} items: </span>
+                    <span className="font-medium text-stone-700">
+                      {orderSuccess.items.map((it) => `${it.quantity}x ${it.name}`).join(', ')}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* ACTION BUTTONS */}
+              <div className="space-y-2 pt-2">
+                <Link
+                  href="/kitchen"
+                  target="_blank"
+                  className="w-full py-3 rounded-xl bg-imperial-800 hover:bg-imperial-900 text-white font-bold text-xs block"
+                >
+                  Open Kitchen Tablet Screen (See Staff Terminal)
+                </Link>
+                <button
+                  onClick={() => setOrderSuccess(null)}
+                  className="w-full py-2.5 rounded-xl border border-stone-200 text-stone-600 hover:text-stone-900 text-xs font-semibold"
+                >
+                  Back to Menu
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
